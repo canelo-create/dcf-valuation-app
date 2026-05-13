@@ -8,7 +8,7 @@
     "income_statement": "https://stockanalysis.com/quote/bme/ITX/financials/",
     "cash_flow": "https://stockanalysis.com/quote/bme/ITX/financials/cash-flow-statement/",
     "balance_sheet": "https://stockanalysis.com/quote/bme/ITX/financials/balance-sheet/",
-    "comps": "comps-raw.csv",
+    "comps": "peers.csv",
     "spain_10y": "tradingeconomics.com/spain/government-bond-yield (manual lookup)",
     "damodaran_erp": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html"
   },

@@ -1,0 +1,83 @@
+{
+  "company": "COMPANY NAME HERE",
+  "ticker": "TICKER.EXCHANGE",
+  "currency": "USD",
+  "as_of_date": "YYYY-MM-DD",
+  "fiscal_year_end": "December 31",
+  "data_sources": {
+    "income_statement": "URL to income statement source",
+    "cash_flow": "URL to cash flow statement source",
+    "balance_sheet": "URL to balance sheet source",
+    "comps": "peers.csv",
+    "risk_free_source": "URL to government bond yield",
+    "erp_source": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html"
+  },
+  "historical": {
+    "FY2021": {"period_end": "2021-12-31", "revenue": 0, "ebitda": 0, "ebit": 0, "da": 0, "capex": 0, "ocf": 0, "fcf": 0, "tax": 0, "pretax": 0, "net_income": 0},
+    "FY2022": {"period_end": "2022-12-31", "revenue": 0, "ebitda": 0, "ebit": 0, "da": 0, "capex": 0, "ocf": 0, "fcf": 0, "tax": 0, "pretax": 0, "net_income": 0},
+    "FY2023": {"period_end": "2023-12-31", "revenue": 0, "ebitda": 0, "ebit": 0, "da": 0, "capex": 0, "ocf": 0, "fcf": 0, "tax": 0, "pretax": 0, "net_income": 0},
+    "FY2024": {"period_end": "2024-12-31", "revenue": 0, "ebitda": 0, "ebit": 0, "da": 0, "capex": 0, "ocf": 0, "fcf": 0, "tax": 0, "pretax": 0, "net_income": 0},
+    "FY2025": {"period_end": "2025-12-31", "revenue": 0, "ebitda": 0, "ebit": 0, "da": 0, "capex": 0, "ocf": 0, "fcf": 0, "tax": 0, "pretax": 0, "net_income": 0}
+  },
+  "market_data": {
+    "shares_outstanding_m": 0,
+    "current_price_eur": 0.0,
+    "market_cap_eur_m": 0,
+    "cash_and_st_investments_eur_m": 0,
+    "total_financial_debt_eur_m": 0,
+    "net_cash_eur_m": 0,
+    "enterprise_value_eur_m": 0,
+    "beta_5y": 1.0
+  },
+  "wacc": {
+    "risk_free_rate_pct": 4.0,
+    "risk_free_source": "US 10Y Treasury yield",
+    "equity_risk_premium_pct": 5.5,
+    "erp_source": "Damodaran current ERP",
+    "beta": 1.0,
+    "cost_of_equity_pct": 9.5,
+    "pretax_cost_of_debt_pct": 5.0,
+    "tax_rate_pct": 25.0,
+    "after_tax_cost_of_debt_pct": 3.75,
+    "equity_weight_pct": 80.0,
+    "debt_weight_pct": 20.0,
+    "wacc_pct": 8.35,
+    "note": "Adjust per company capital structure"
+  },
+  "projection_assumptions_base": {
+    "horizon_years": 10,
+    "revenue_growth_yoy_pct": [8.0, 7.0, 6.0, 5.0, 5.0, 4.0, 4.0, 3.5, 3.0, 2.5],
+    "ebitda_margin_pct": [25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0, 25.0],
+    "da_pct_of_revenue": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+    "capex_pct_of_revenue": [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0],
+    "nwc_change_pct_of_revenue_change": 2.0,
+    "tax_rate_pct": 25.0,
+    "terminal_growth_pct": 2.5,
+    "exit_multiple_ev_ebitda": 12.0
+  },
+  "projection_assumptions_bear": {
+    "revenue_growth_yoy_pct": [3.0, 2.0, 2.0, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5],
+    "ebitda_margin_pct": [22.0, 21.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0],
+    "da_pct_of_revenue": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+    "capex_pct_of_revenue": [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0],
+    "nwc_change_pct_of_revenue_change": 2.0,
+    "tax_rate_pct": 25.0,
+    "terminal_growth_pct": 1.5,
+    "exit_multiple_ev_ebitda": 9.0
+  },
+  "projection_assumptions_bull": {
+    "revenue_growth_yoy_pct": [10.0, 9.0, 8.0, 7.0, 6.0, 6.0, 5.0, 5.0, 4.0, 3.5],
+    "ebitda_margin_pct": [27.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0],
+    "da_pct_of_revenue": [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+    "capex_pct_of_revenue": [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0],
+    "nwc_change_pct_of_revenue_change": 2.0,
+    "tax_rate_pct": 25.0,
+    "terminal_growth_pct": 3.0,
+    "exit_multiple_ev_ebitda": 14.0
+  },
+  "sensitivity_ranges": {
+    "wacc_pct": [6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5],
+    "terminal_growth_pct": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+    "exit_multiple": [9.0, 10.5, 12.0, 13.5, 15.0]
+  }
+}

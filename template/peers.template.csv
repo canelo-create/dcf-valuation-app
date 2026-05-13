@@ -1,0 +1,7 @@
+Company,Ticker,Currency,Revenue_TTM_LCY,Gross_Profit_TTM_LCY,EBITDA_TTM_LCY,Net_Income_TTM_LCY,Operating_Margin_pct,Net_Margin_pct,Market_Cap_LCY,Enterprise_Value_LCY,EV_Sales,EV_EBITDA,PE_Trailing,PE_Forward,Beta_5Y,Shares_Outstanding,Stock_Price_LCY,Total_Cash_LCY,Total_Debt_LCY,As_of_Date
+TARGET COMPANY,TARGET.EXCHANGE,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD
+Peer 1,PEER1.EX,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD
+Peer 2,PEER2.EX,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD
+Peer 3,PEER3.EX,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD
+Peer 4,PEER4.EX,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD
+Peer 5,PEER5.EX,USD,0,0,0,0,0,0,0,0,0,0,0,0,1.0,0,0,0,0,YYYY-MM-DD

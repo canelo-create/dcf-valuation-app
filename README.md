@@ -1,88 +1,169 @@
-# Inditex DCF Valuation Case Study
+# Equity Valuation Toolkit (DCF + Comps)
 
-End-to-end equity valuation of Inditex (BME:ITX) using the open-source DCF and comparable company analysis skills from Anthropic's [financial-services](https://github.com/anthropics/financial-services) repo (Apache 2.0).
+End-to-end equity valuation toolkit built on Anthropic's open-source [financial-services](https://github.com/anthropics/financial-services) skills (Apache 2.0). Works for **any listed equity**.
 
-**Result (base case):** Implied share price EUR 56.27 vs market EUR 48.55 = **+16% moderate upside**. Bear case EUR 32 (-34%), bull case EUR 70 (+45%).
+## What it does
 
-## What this repo contains
+For a given company + 5 listed peers, generates:
 
-- `comps-analysis.md` + `comps-inditex.xlsx` — Comparable company analysis vs H&M, Fast Retailing, Next, Gap, Abercrombie
-- `dcf-analysis.md` + `dcf-inditex.xlsx` — 10-year discounted cash flow model with WACC build, terminal value (blended perpetuity + exit multiple), 3 scenarios, sensitivity tables
-- `dcf-inputs.json` — Central source of truth for all model assumptions
-- `compute_dcf.py` — Headless DCF computation script
-- `build_dcf_xlsx.py` — Generates the live Excel model with formulas
-- `build-comps.py` — Generates the comps Excel
-- `audit_xls.py` — Programmatic audit (formula errors, hardcodes, DCF logic checks)
-- `comps-raw.csv` — Input data for 6 companies
+1. **Comps analysis** — operating metrics + valuation multiples + statistics (max / 75th / median / 25th / min) in a publication-grade Excel file
+2. **DCF model** — 10-year explicit projection, WACC build via CAPM, blended terminal value, 3 scenarios (Bear / Base / Bull), sensitivity tables
+3. **Programmatic audit** — formula error check, DCF logic verification, sanity bands
+
+Output: 2 Excel files + Python scripts to reproduce + written memo per case.
+
+## Quick start
+
+```bash
+# Install dependency
+pip install openpyxl
+
+# Run Inditex showcase case
+python compute_dcf.py --inputs cases/inditex/inputs.json
+python build_dcf_xlsx.py --inputs cases/inditex/inputs.json --output cases/inditex/dcf.xlsx
+python build_comps.py --inputs cases/inditex/inputs.json --output cases/inditex/comps.xlsx
+python audit_xls.py --xlsx cases/inditex/dcf.xlsx
+```
+
+## Add a new company
+
+```bash
+# Copy templates
+mkdir cases/microsoft
+cp template/inputs.template.json cases/microsoft/inputs.json
+cp template/peers.template.csv cases/microsoft/peers.csv
+
+# Fill in financial data (see docs/adding-a-new-company.md)
+
+# Run
+python compute_dcf.py --inputs cases/microsoft/inputs.json
+python build_dcf_xlsx.py --inputs cases/microsoft/inputs.json --output cases/microsoft/dcf.xlsx
+```
+
+Full step-by-step guide: [docs/adding-a-new-company.md](docs/adding-a-new-company.md).
+
+## Showcase case: Inditex (BME:ITX)
+
+Live example in `cases/inditex/`. Findings:
+
+- Base case implied EUR 56 / share vs market EUR 48 → +16% moderate upside
+- Best-in-class operator: 28% EBITDA margin vs peer median 13%
+- Trades +40% premium to peer median EV/EBITDA, justified by margin lead
+- Net cash EUR 11B, beta 0.92 → low WACC 8.26%
+- Bear case EUR 32 (-34%), Bull case EUR 70 (+45%)
+
+Full memo: `cases/inditex/dcf-analysis.md`.
+
+## Repository structure
+
+```
+.
+├── README.md                       # This file
+├── LICENSE                         # Apache 2.0 + Anthropic attribution
+├── LINKEDIN-POST.md                # Drafts for case study sharing
+├── compute_dcf.py                  # Headless DCF computation
+├── build_dcf_xlsx.py               # Generates DCF Excel
+├── build_comps.py                  # Generates comps Excel
+├── audit_xls.py                    # Programmatic model audit
+├── template/
+│   ├── inputs.template.json        # Blank DCF inputs template
+│   └── peers.template.csv          # Blank peer set template
+├── cases/
+│   └── inditex/                    # Showcase case
+│       ├── inputs.json
+│       ├── peers.csv
+│       ├── dcf-analysis.md
+│       ├── comps-analysis.md
+│       ├── dcf.xlsx
+│       └── comps.xlsx
+└── docs/
+    └── adding-a-new-company.md     # Step-by-step guide
+```
 
 ## Methodology
 
-1. **Comps fase:** Pulled key metrics for Inditex + 5 retail apparel peers from stockanalysis.com. Computed margins, valuation multiples, peer statistics (max/75th/median/25th/min). Identified Inditex as best-in-class operator (28.3% EBITDA margin vs peer median 13.4%) cotizing at +40% premium on EV/EBITDA, justified by margin lead.
+### DCF approach
 
-2. **DCF fase:** 10-year explicit projection of Unlevered Free Cash Flow. WACC via CAPM (Spain RF 3.2% + beta 0.92 * ERP 5.5% = 8.26%). Inditex net cash position EUR 11B simplifies to all-equity WACC. Terminal value blended (perpetuity growth 2.5% + exit multiple 12.0x EBITDA). 3 scenarios: Bear / Base / Bull with full assumption set.
+10-year explicit projection of Unlevered Free Cash Flow:
 
-3. **Audit fase:** Programmatic checks via `audit_xls.py`: 185 formulas, 0 error strings, FCF formula structure verified, discount factor references absolute WACC.
-
-4. **Primary source verification:** Cross-checked all key inputs vs Inditex official FY2025 press release (2026-03-11). Identified FY2024 data extraction error in stockanalysis.com and corrected manually. Reconciled "FCF" definition differences (stockanalysis OCF-CapEx vs Inditex post-lease-payment vs DCF unlevered).
-
-## Key findings
-
-| Insight | Detail |
-|---|---|
-| Best-in-class margins | EBITDA margin 28.3% vs peer max 20.6% (Next) |
-| Premium vs peers | +40% on EV/EBITDA, +30% on P/E |
-| Premium justified | By margin lead, brand portfolio, supply chain, net cash position |
-| Net cash | EUR 11B = 6% of equity value, optionality for buybacks/M&A |
-| Beta 0.92 | Defensive, keeps WACC low |
-| Terminal % of EV | 60.8% (within 50-70% sanity band) |
-| Critical assumption | Margin sustainability > growth |
-| Brand concentration | Zara 70% of revenue |
-| Geographic | Europe 67%, Americas 18%, Asia 15% |
-| Online | 27% of sales |
-
-## Reproduction
-
-```bash
-python -m pip install openpyxl  # if not installed
-python compute_dcf.py           # headless DCF, prints summary
-python build_dcf_xlsx.py        # generates dcf-inditex.xlsx
-python build-comps.py           # generates comps-inditex.xlsx
-python audit_xls.py             # runs audit on the DCF xlsx
+```
+EBIT * (1 - tax rate) = NOPAT
++ D&A
+- CapEx
+- Change in NWC
+= Unlevered FCF
 ```
 
-Modify assumptions in `dcf-inputs.json` and rerun.
+Discounted at WACC via CAPM: Cost of Equity = Rf + Beta * ERP.
+
+Terminal value blended (perpetuity growth + exit EV/EBITDA multiple) for robustness.
+
+Mid-year discount convention (periods 0.5, 1.5, ... 9.5).
+
+### Comps approach
+
+5-6 listed peers, same business model + scale + geography mix.
+
+Operating metrics: Revenue, Gross Margin, EBITDA Margin, Op Margin, Net Margin.
+
+Valuation multiples: EV/Sales, EV/EBITDA, P/E (TTM and Forward), Beta.
+
+Statistics per metric: Max, 75th percentile, Median, 25th percentile, Min.
+
+### Audit
+
+Programmatic checks (no Excel required):
+- Formula error strings (#REF!, #DIV/0!, #VALUE!, #N/A, #NAME?)
+- FCF formula structure: NOPAT + D&A - CapEx - ΔNWC
+- Discount factor absolute reference to WACC
+- WACC formula references cost of equity
+- Hardcode warnings (numeric literals in formulas)
 
 ## Stack
 
-- Python 3.14 (Windows ARM64 compatible)
-- openpyxl 3.1.5 (pure Python, no native bindings)
-- Anthropic `financial-services` plugin (Apache 2.0), `dcf-model` + `comps-analysis` + `audit-xls` skills
-- Data sources: stockanalysis.com (aggregator), Inditex official IR (primary), Damodaran NYU (ERP)
+- Python 3.11+ (tested on 3.14 ARM64 Windows)
+- openpyxl 3.1.5 (pure Python, no native deps)
+- Anthropic `financial-services` skill prompts (Apache 2.0)
 
-## Limitations
+Pure-Python design: works on any platform including Windows ARM64.
 
-1. FY2024 stockanalysis.com data extraction had error (29.4B vs actual 38.6B). Corrected manually.
-2. Sensitivity table holds sum PV FCFs constant at base WACC (varies only terminal). For full re-runs at different WACC, edit `dcf-inputs.json`.
-3. No quarterly model, no 3-statement integration. Add for production-grade.
-4. Single point in time snapshot.
-5. Operating lease liabilities (IFRS 16) embedded in EBITDA/D&A, not separately modeled.
+## What this is NOT
+
+- **Not investment advice.** Educational tool and analyst work product.
+- **Not a Bloomberg replacement.** Data quality depends on what you put in.
+- **Not for banks or insurance.** Use DDM or Residual Income for those.
+- **Not for pre-revenue startups.** No cash flows to discount.
+- **Not auto-pull data.** You fill the JSON / CSV. Future v2 could integrate APIs.
+
+## Limitations (current)
+
+1. Sensitivity table varies only terminal at base WACC. For full WACC sensitivity, edit inputs.json and rerun.
+2. No 3-statement integration (IS/BS/CF not linked).
+3. Operating lease liabilities (IFRS 16) embedded in EBITDA, not separately modeled.
+4. Single snapshot, no multi-period or quarterly view.
+5. Manual data entry from public sources (stockanalysis.com, IR pages, Damodaran).
+
+See `docs/adding-a-new-company.md` for workarounds and v2 roadmap.
 
 ## Disclaimer
 
-NOT INVESTMENT ADVICE. This is an educational case study and analyst work product showcasing the application of Anthropic's open-source financial-services skills to a real public company. Nothing herein constitutes a buy, sell, or hold recommendation. Past performance does not predict future results. Verify all figures against Inditex official annual report (https://www.inditex.com/itxcomweb/en/investors) before any investment decision.
+NOT INVESTMENT ADVICE. This toolkit produces analyst work product for review by a qualified professional. Verify all figures against the company's official annual report before any investment decision.
 
-Per the Anthropic FSI repo README: "These agents draft analyst work product — models, memos, research notes, reconciliations — for review by a qualified professional."
+Per Anthropic's FSI repo README: "These agents draft analyst work product — models, memos, research notes, reconciliations — for review by a qualified professional."
 
 ## Attribution
 
-This work derives from [anthropics/financial-services](https://github.com/anthropics/financial-services) (Apache 2.0). The skill prompts and methodological framework are Anthropic's. The Inditex-specific data, analysis, and Python implementation are original work.
+Built on top of [anthropics/financial-services](https://github.com/anthropics/financial-services) (Apache 2.0):
+- `dcf-model` skill (methodology framework)
+- `comps-analysis` skill (structure + conventions)
+- `audit-xls` skill (audit checklist)
+
+Skill prompts and methodology by Anthropic. Python implementation, case data, and analytical conclusions are original work.
 
 ## License
 
-Apache License 2.0. See `LICENSE` file.
+Apache License 2.0. See `LICENSE`.
 
 ## Author
 
-Andres Lince  
-IMBA Candidate, IE Business School  
-linceandres7@gmail.com  
+Andres Lince — IMBA Candidate, IE Business School. linceandres7@gmail.com.
