@@ -1,6 +1,10 @@
-# Equity Valuation Toolkit (DCF + Comps)
+# Equity Valuation Toolkit (DCF + Comps + Web App)
 
 End-to-end equity valuation toolkit built on Anthropic's open-source [financial-services](https://github.com/anthropics/financial-services) skills (Apache 2.0). Works for **any listed equity**.
+
+**Two ways to use:**
+1. **Web app** (Streamlit): enter ticker, get instant DCF + comps + downloads. Deploy free on Streamlit Cloud. See [DEPLOY.md](DEPLOY.md).
+2. **CLI scripts**: fill JSON + CSV manually, run Python scripts. See "Quick start" below.
 
 ## What it does
 
@@ -12,10 +16,22 @@ For a given company + 5 listed peers, generates:
 
 Output: 2 Excel files + Python scripts to reproduce + written memo per case.
 
-## Quick start
+## Quick start (web app, recommended)
 
 ```bash
-# Install dependency
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+Open http://localhost:8501. Enter ticker (e.g. `AAPL`), peer tickers, click **Fetch data**. App auto-pulls 5Y financials, computes DCF, generates charts, downloads xlsx + memo.
+
+For free public hosting on Streamlit Cloud see [DEPLOY.md](DEPLOY.md).
+
+**Note:** Streamlit needs pyarrow which lacks Windows ARM64 wheels. Local dev on Win ARM64 requires WSL2 or x86 emulation. Production deploy on Streamlit Cloud (Linux) works.
+
+## Quick start (CLI scripts)
+
+```bash
 pip install openpyxl
 
 # Run Inditex showcase case

@@ -93,20 +93,24 @@ def stats_row(ws, row, label, ranges, fmt):
 def build(inputs_path, output_path):
     inputs_path = Path(inputs_path)
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
-    company = inputs["company"]
-    ticker = inputs["ticker"]
-    as_of = inputs["as_of_date"]
-
     peers_csv_rel = inputs["data_sources"]["comps"]
     peers_csv = inputs_path.parent / peers_csv_rel
     if not peers_csv.exists():
         raise FileNotFoundError(f"Peer CSV not found at {peers_csv}")
-
     with open(peers_csv, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
+    wb = build_workbook(inputs, rows)
+    wb.save(output_path)
+    print(f"Wrote {output_path}")
+
+
+def build_workbook(inputs, rows):
+    company = inputs["company"]
+    ticker = inputs["ticker"]
+    as_of = inputs["as_of_date"]
 
     if not rows:
-        raise ValueError(f"Peer CSV is empty: {peers_csv}")
+        raise ValueError("No peer rows provided")
 
     target_row = next((r for r in rows if r["Company"].lower() == company.lower()), rows[0])
     tickers = " vs ".join(f"{r['Company']} ({r['Ticker']})" for r in rows)

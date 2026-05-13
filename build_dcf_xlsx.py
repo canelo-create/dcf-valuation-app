@@ -72,6 +72,12 @@ def formula_cell(ws, row, col, formula, fmt=None, bold=False):
 
 def build(inputs_path, output_path):
     inputs = json.loads(Path(inputs_path).read_text(encoding="utf-8"))
+    wb = build_workbook(inputs)
+    wb.save(output_path)
+    print(f"Wrote {output_path}")
+
+
+def build_workbook(inputs):
     company = inputs["company"]
     ticker = inputs["ticker"]
     ccy = inputs["currency"]
@@ -440,8 +446,7 @@ def build(inputs_path, output_path):
     for c in range(2, 13):
         ws.column_dimensions[get_column_letter(c)].width = 14
 
-    wb.save(output_path)
-    print(f"Wrote {output_path}")
+    return wb
 
 
 def main():
