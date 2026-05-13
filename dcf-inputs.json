@@ -1,0 +1,75 @@
+{
+  "company": "Inditex",
+  "ticker": "ITX.MC",
+  "currency": "EUR",
+  "as_of_date": "2026-05-13",
+  "fiscal_year_end": "January 31",
+  "data_sources": {
+    "income_statement": "https://stockanalysis.com/quote/bme/ITX/financials/",
+    "cash_flow": "https://stockanalysis.com/quote/bme/ITX/financials/cash-flow-statement/",
+    "balance_sheet": "https://stockanalysis.com/quote/bme/ITX/financials/balance-sheet/",
+    "comps": "comps-raw.csv",
+    "spain_10y": "tradingeconomics.com/spain/government-bond-yield (manual lookup)",
+    "damodaran_erp": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html"
+  },
+  "historical": {
+    "FY2021": {"period_end": "2022-01-31", "revenue": 27717, "ebitda": 4407, "ebit": 4282, "da": 2848, "capex": 99, "ocf": 1580, "fcf": 1481, "tax": 949, "pretax": 4199, "net_income": 3243},
+    "FY2022": {"period_end": "2023-01-31", "revenue": 32569, "ebitda": 8419, "ebit": 5520, "da": 2899, "capex": 1415, "ocf": 6674, "fcf": 5259, "tax": 1211, "pretax": 5358, "net_income": 4130},
+    "FY2023": {"period_end": "2024-01-31", "revenue": 35948, "ebitda": 9850, "ebit": 6809, "da": 2994, "capex": 1872, "ocf": 8667, "fcf": 6795, "tax": 1475, "pretax": 6870, "net_income": 5381},
+    "FY2024": {"period_end": "2025-01-31", "revenue": 38632, "ebitda": 10584, "ebit": 7340, "da": 3100, "capex": 2400, "ocf": 9000, "fcf": 6600, "tax": 1610, "pretax": 7300, "net_income": 5690, "note": "FY2024 revenue 38.6B per Inditex official annual results. stockanalysis.com showed 29.4B which is data extraction error; other line items estimated proportionally"},
+    "FY2025": {"period_end": "2026-01-31", "revenue": 39864, "ebitda": 11268, "ebit": 7997, "da": 3222, "capex": 2712, "ocf": 9232, "fcf": 6520, "tax": 1800, "pretax": 8020, "net_income": 6220}
+  },
+  "market_data": {
+    "shares_outstanding_m": 3118,
+    "current_price_eur": 48.55,
+    "market_cap_eur_m": 151378,
+    "cash_and_st_investments_eur_m": 10960,
+    "total_financial_debt_eur_m": 28,
+    "net_cash_eur_m": 10932,
+    "enterprise_value_eur_m": 140446,
+    "beta_5y": 0.92
+  },
+  "wacc": {
+    "risk_free_rate_pct": 3.2,
+    "risk_free_source": "Spain 10Y government bond yield, May 2026 approx",
+    "equity_risk_premium_pct": 5.5,
+    "erp_source": "Damodaran 2026 Spain mature market ERP",
+    "beta": 0.92,
+    "cost_of_equity_pct": 8.26,
+    "pretax_cost_of_debt_pct": 4.0,
+    "tax_rate_pct": 22.0,
+    "after_tax_cost_of_debt_pct": 3.12,
+    "equity_weight_pct": 100.0,
+    "debt_weight_pct": 0.0,
+    "wacc_pct": 8.26,
+    "note": "Inditex has net cash position EUR 11B vs EUR 28M financial debt. Effectively 100% equity-financed for WACC purposes. Operating lease liabilities (IFRS 16) excluded as already in EBIT/EBITDA via D&A."
+  },
+  "projection_assumptions_base": {
+    "horizon_years": 10,
+    "revenue_growth_yoy_pct": [7.0, 6.0, 6.0, 5.0, 5.0, 4.0, 4.0, 3.5, 3.0, 2.5],
+    "ebitda_margin_pct": [28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5],
+    "da_pct_of_revenue": [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+    "capex_pct_of_revenue": [7.0, 7.0, 6.5, 6.5, 6.0, 6.0, 5.5, 5.5, 5.0, 5.0],
+    "nwc_change_pct_of_revenue_change": -2.0,
+    "tax_rate_pct": 22.0,
+    "terminal_growth_pct": 2.5,
+    "exit_multiple_ev_ebitda": 12.0
+  },
+  "projection_assumptions_bear": {
+    "revenue_growth_yoy_pct": [3.0, 2.0, 2.0, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5],
+    "ebitda_margin_pct": [26.0, 25.0, 24.0, 23.0, 23.0, 23.0, 23.0, 23.0, 23.0, 23.0],
+    "terminal_growth_pct": 1.5,
+    "exit_multiple_ev_ebitda": 9.0
+  },
+  "projection_assumptions_bull": {
+    "revenue_growth_yoy_pct": [9.0, 8.0, 7.0, 7.0, 6.0, 6.0, 5.0, 5.0, 4.0, 3.5],
+    "ebitda_margin_pct": [29.5, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
+    "terminal_growth_pct": 3.0,
+    "exit_multiple_ev_ebitda": 14.0
+  },
+  "sensitivity_ranges": {
+    "wacc_pct": [6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5],
+    "terminal_growth_pct": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+    "exit_multiple": [9.0, 10.5, 12.0, 13.5, 15.0]
+  }
+}

@@ -1,0 +1,36 @@
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+   ----------------------------------------------------------------------
+
+   Portions of this work derive from anthropics/financial-services
+   (https://github.com/anthropics/financial-services), specifically the
+   dcf-model, comps-analysis, and audit-xls skills under the financial-analysis
+   vertical plugin. Original work licensed under Apache License 2.0 by Anthropic.
+
+   The analytical conclusions, Inditex-specific data, and Python implementation
+   in this repository are original work by the author. No proprietary data from
+   any commercial data vendor (Bloomberg, FactSet, S&P, Daloopa, etc.) is
+   included. Financial data sourced from Inditex investor relations public
+   disclosures and stockanalysis.com aggregated public filings.
+
+   NO INVESTMENT ADVICE. This is an educational case study and analyst work
+   product. Nothing herein constitutes a buy, sell, or hold recommendation.
+   Verify all figures against Inditex official annual report before any
+   investment decision.
+
+   Author: Andres Lince (linceandres7@gmail.com)
+   Created: 2026-05-13
