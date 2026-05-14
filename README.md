@@ -182,4 +182,4 @@ Apache License 2.0. See `LICENSE`.
 
 ## Author
 
-Andres Lince — IMBA Candidate, IE Business School. linceandres7@gmail.com.
+Private project.
