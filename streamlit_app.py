@@ -1,15 +1,7 @@
 """Equity Valuation Web App — DCF + Comps for any listed company.
 
 Built on Anthropic financial-services skills (Apache 2.0).
-
-Deploy on Streamlit Cloud:
-  1. Push repo to GitHub
-  2. Connect Streamlit Cloud to repo
-  3. Set main file: streamlit_app.py
-
-Run locally (requires pyarrow which lacks Win ARM64 wheels):
-  pip install -r requirements.txt
-  streamlit run streamlit_app.py
+Spotify-style dark UI. Spanish.
 """
 
 import io
@@ -29,10 +21,126 @@ import data_fetcher
 import memo_generator
 
 st.set_page_config(
-    page_title="Equity Valuation Toolkit",
+    page_title="Valoracion DCF | Spotify Style",
     page_icon=":chart_with_upwards_trend:",
     layout="wide",
 )
+
+SPOTIFY_GREEN = "#1DB954"
+SPOTIFY_GREEN_LIGHT = "#1ED760"
+SPOTIFY_BG = "#121212"
+SPOTIFY_CARD = "#181818"
+SPOTIFY_TERTIARY = "#282828"
+SPOTIFY_TEXT_MUTED = "#B3B3B3"
+
+CUSTOM_CSS = f"""
+<style>
+    .stApp {{
+        background-color: {SPOTIFY_BG};
+        color: #FFFFFF;
+    }}
+    section[data-testid="stSidebar"] {{
+        background-color: #000000;
+    }}
+    h1, h2, h3, h4 {{
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em;
+    }}
+    .stButton > button {{
+        background-color: {SPOTIFY_GREEN};
+        color: #000000;
+        border: none;
+        border-radius: 500px;
+        font-weight: 700;
+        padding: 0.6rem 2rem;
+        transition: all 0.15s ease;
+    }}
+    .stButton > button:hover {{
+        background-color: {SPOTIFY_GREEN_LIGHT};
+        transform: scale(1.04);
+        color: #000000;
+    }}
+    [data-testid="stMetric"] {{
+        background-color: {SPOTIFY_CARD};
+        padding: 1.2rem;
+        border-radius: 8px;
+        border: 1px solid {SPOTIFY_TERTIARY};
+    }}
+    [data-testid="stMetric"]:hover {{
+        background-color: {SPOTIFY_TERTIARY};
+    }}
+    [data-testid="stMetricLabel"] {{
+        color: {SPOTIFY_TEXT_MUTED} !important;
+        font-size: 0.85rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }}
+    [data-testid="stMetricValue"] {{
+        color: #FFFFFF !important;
+        font-size: 2rem !important;
+        font-weight: 700;
+    }}
+    [data-testid="stMetricDelta"] {{
+        font-weight: 600;
+    }}
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 8px;
+        background-color: transparent;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: {SPOTIFY_CARD};
+        border-radius: 500px;
+        padding: 0.5rem 1.2rem;
+        color: {SPOTIFY_TEXT_MUTED};
+        font-weight: 600;
+        border: none;
+    }}
+    .stTabs [aria-selected="true"] {{
+        background-color: {SPOTIFY_GREEN} !important;
+        color: #000000 !important;
+    }}
+    .stDataFrame, .stTable {{
+        background-color: {SPOTIFY_CARD};
+        border-radius: 8px;
+    }}
+    div[data-testid="stExpander"] {{
+        background-color: {SPOTIFY_CARD};
+        border-radius: 8px;
+        border: 1px solid {SPOTIFY_TERTIARY};
+    }}
+    .stSlider > div > div > div > div {{
+        background-color: {SPOTIFY_GREEN};
+    }}
+    .stSelectbox label, .stMultiSelect label, .stNumberInput label, .stTextInput label, .stSlider label {{
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }}
+    .stAlert {{
+        background-color: {SPOTIFY_CARD};
+        border-radius: 8px;
+    }}
+    a {{
+        color: {SPOTIFY_GREEN} !important;
+    }}
+    /* Headline hero */
+    .hero-title {{
+        font-size: 3rem;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        background: linear-gradient(135deg, {SPOTIFY_GREEN} 0%, {SPOTIFY_GREEN_LIGHT} 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }}
+    .hero-sub {{
+        color: {SPOTIFY_TEXT_MUTED};
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }}
+</style>
+"""
 
 
 def init_state():
@@ -45,23 +153,17 @@ def init_state():
 
 
 def render_header():
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("Equity Valuation Toolkit")
-        st.caption("DCF + Comparable Company Analysis for any listed company. Powered by Anthropic financial-services skills (Apache 2.0).")
-    with col2:
-        st.markdown(
-            """
-            [![GitHub](https://img.shields.io/badge/GitHub-Source-181717?logo=github)](https://github.com)
-            [Anthropic FSI](https://github.com/anthropics/financial-services)
-            """,
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f"""
+        <div class="hero-title">Valoracion DCF</div>
+        <div class="hero-sub">Analisis financiero institucional para cualquier empresa cotizada. Construido con agentes Anthropic FSI (Apache 2.0).</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_data
 def load_companies():
-    """Load curated company list from companies.json. Returns flat list of 'Name (TICKER)' strings + lookup dict."""
     path = Path(__file__).parent / "companies.json"
     if not path.exists():
         return [], {}
@@ -79,53 +181,53 @@ def load_companies():
 def render_ticker_input():
     labels, lookup = load_companies()
     with st.sidebar:
-        st.header("1. Target & Peers")
-        st.caption(f"{len(labels)} listed companies across US, EU, Asia, LatAm. Type to search.")
+        st.header("Empresa y comparables")
+        st.caption(f"{len(labels)} empresas cotizadas en US, EU, Asia, LatAm. Escribe para buscar.")
 
         default_target = next((l for l in labels if "(AAPL)" in l), labels[0] if labels else "")
         target_label = st.selectbox(
-            "Target company",
+            "Empresa objetivo",
             options=labels,
             index=labels.index(default_target) if default_target in labels else 0,
-            help="Search by name or ticker. Type to filter.",
+            help="Busca por nombre o ticker.",
         )
         ticker = lookup.get(target_label, "AAPL")
 
         default_peers_tickers = {"MSFT", "GOOGL", "META", "AMZN", "NFLX"}
         default_peers_labels = [l for l in labels if lookup.get(l) in default_peers_tickers]
         peer_labels = st.multiselect(
-            "Peer companies",
+            "Empresas comparables",
             options=labels,
             default=default_peers_labels,
-            help="Pick 3 to 6 peers. Search by name or ticker.",
+            help="Elige de 3 a 6 comparables. Busca por nombre o ticker.",
         )
         peers = [lookup[l] for l in peer_labels if l in lookup]
 
-        with st.expander("Custom tickers (advanced)"):
-            custom_target = st.text_input("Override target ticker", value="", help="Use if company not in dropdown. e.g. ITX.MC")
-            custom_peers = st.text_input("Override peer tickers (comma)", value="", help="e.g. ITX.MC, HM-B.ST")
+        with st.expander("Tickers personalizados (avanzado)"):
+            custom_target = st.text_input("Sobrescribir ticker objetivo", value="", help="Para empresas no listadas. Ej: ITX.MC")
+            custom_peers = st.text_input("Sobrescribir tickers comparables (coma)", value="", help="Ej: ITX.MC, HM-B.ST")
             if custom_target.strip():
                 ticker = custom_target.strip()
             if custom_peers.strip():
                 peers = [t.strip() for t in custom_peers.split(",") if t.strip()]
 
-        fetch = st.button("Fetch data", type="primary", use_container_width=True)
+        fetch = st.button("Cargar datos", type="primary", use_container_width=True)
         return ticker, peers, fetch
 
 
 def render_wacc_controls(inputs):
     with st.sidebar:
-        st.header("2. WACC")
+        st.header("Coste de capital (WACC)")
         wacc_d = inputs["wacc"]
-        rf = st.number_input("Risk-free rate (%)", min_value=0.0, max_value=15.0, value=float(wacc_d["risk_free_rate_pct"]), step=0.1)
-        erp = st.number_input("Equity risk premium (%)", min_value=3.0, max_value=15.0, value=float(wacc_d["equity_risk_premium_pct"]), step=0.1)
-        beta = st.number_input("Beta (5Y)", min_value=0.0, max_value=3.0, value=float(wacc_d["beta"]), step=0.05)
-        tax = st.number_input("Tax rate (%)", min_value=0.0, max_value=40.0, value=float(wacc_d["tax_rate_pct"]), step=1.0)
+        rf = st.number_input("Tasa libre de riesgo (%)", min_value=0.0, max_value=15.0, value=float(wacc_d["risk_free_rate_pct"]), step=0.1)
+        erp = st.number_input("Prima de riesgo mercado (%)", min_value=3.0, max_value=15.0, value=float(wacc_d["equity_risk_premium_pct"]), step=0.1)
+        beta = st.number_input("Beta (5 anos)", min_value=0.0, max_value=3.0, value=float(wacc_d["beta"]), step=0.05)
+        tax = st.number_input("Tipo impositivo (%)", min_value=0.0, max_value=40.0, value=float(wacc_d["tax_rate_pct"]), step=1.0)
 
         cost_of_equity = rf + beta * erp
-        st.metric("Cost of equity (CAPM)", f"{cost_of_equity:.2f}%")
+        st.metric("Coste del equity (CAPM)", f"{cost_of_equity:.2f}%")
         wacc = cost_of_equity
-        st.metric("WACC (all-equity simplification)", f"{wacc:.2f}%")
+        st.metric("WACC (simplificado 100% equity)", f"{wacc:.2f}%")
 
         wacc_d["risk_free_rate_pct"] = rf
         wacc_d["equity_risk_premium_pct"] = erp
@@ -136,15 +238,18 @@ def render_wacc_controls(inputs):
         return inputs
 
 
+SCENARIO_LABELS = {"bear": "Pesimista", "base": "Base", "bull": "Optimista"}
+
+
 def render_scenario_controls(inputs, scenario_key):
-    label = scenario_key.title()
-    with st.expander(f"{label} case assumptions", expanded=(scenario_key == "base")):
+    label = SCENARIO_LABELS[scenario_key]
+    with st.expander(f"Supuestos {label}", expanded=(scenario_key == "base")):
         a = inputs[f"projection_assumptions_{scenario_key}"]
-        y1_growth = st.slider(f"{label}: Y1 revenue growth (%)", -10.0, 30.0, float(a["revenue_growth_yoy_pct"][0]), 0.5, key=f"{scenario_key}_y1g")
-        y10_growth = st.slider(f"{label}: Y10 revenue growth (%)", -5.0, 15.0, float(a["revenue_growth_yoy_pct"][-1]), 0.5, key=f"{scenario_key}_y10g")
-        margin_stable = st.slider(f"{label}: EBITDA margin (%)", 5.0, 50.0, float(a["ebitda_margin_pct"][0]), 0.5, key=f"{scenario_key}_mgn")
-        terminal_g = st.slider(f"{label}: Terminal growth (%)", 0.0, 5.0, float(a["terminal_growth_pct"]), 0.1, key=f"{scenario_key}_tg")
-        exit_mult = st.slider(f"{label}: Exit multiple (EV/EBITDA)", 4.0, 25.0, float(a["exit_multiple_ev_ebitda"]), 0.5, key=f"{scenario_key}_em")
+        y1_growth = st.slider(f"{label}: Crecimiento ingresos Y1 (%)", -10.0, 30.0, float(a["revenue_growth_yoy_pct"][0]), 0.5, key=f"{scenario_key}_y1g")
+        y10_growth = st.slider(f"{label}: Crecimiento ingresos Y10 (%)", -5.0, 15.0, float(a["revenue_growth_yoy_pct"][-1]), 0.5, key=f"{scenario_key}_y10g")
+        margin_stable = st.slider(f"{label}: Margen EBITDA (%)", 5.0, 50.0, float(a["ebitda_margin_pct"][0]), 0.5, key=f"{scenario_key}_mgn")
+        terminal_g = st.slider(f"{label}: Crecimiento terminal (%)", 0.0, 5.0, float(a["terminal_growth_pct"]), 0.1, key=f"{scenario_key}_tg")
+        exit_mult = st.slider(f"{label}: Multiplo salida (EV/EBITDA)", 4.0, 25.0, float(a["exit_multiple_ev_ebitda"]), 0.5, key=f"{scenario_key}_em")
 
         a["revenue_growth_yoy_pct"] = list(_interp_decay(y1_growth, y10_growth, 10))
         a["ebitda_margin_pct"] = [margin_stable] * 10
@@ -154,7 +259,6 @@ def render_scenario_controls(inputs, scenario_key):
 
 
 def _interp_decay(start, end, n):
-    """Linear interpolation start -> end across n periods."""
     if n <= 1:
         return [start]
     step = (end - start) / (n - 1)
@@ -165,10 +269,10 @@ def render_market_data_summary(inputs):
     md = inputs["market_data"]
     ccy = inputs["currency"]
     cols = st.columns(4)
-    cols[0].metric("Price", f"{ccy} {md['current_price_eur']:.2f}")
-    cols[1].metric("Market cap", f"{ccy} {md['market_cap_eur_m']:,.0f}M")
-    cols[2].metric("Net cash / (debt)", f"{ccy} {md['net_cash_eur_m']:,.0f}M")
-    cols[3].metric("Enterprise value", f"{ccy} {md['enterprise_value_eur_m']:,.0f}M")
+    cols[0].metric("Precio", f"{ccy} {md['current_price_eur']:.2f}")
+    cols[1].metric("Capitalizacion", f"{ccy} {md['market_cap_eur_m']:,.0f}M")
+    cols[2].metric("Caja neta / (Deuda)", f"{ccy} {md['net_cash_eur_m']:,.0f}M")
+    cols[3].metric("Valor empresa (EV)", f"{ccy} {md['enterprise_value_eur_m']:,.0f}M")
 
 
 def render_scenario_cards(inputs, scenarios):
@@ -178,13 +282,26 @@ def render_scenario_cards(inputs, scenarios):
     for i, case in enumerate(["bear", "base", "bull"]):
         s = scenarios[case]["dcf"]
         upside = (s["implied_share_price"] / current - 1) * 100 if current else 0
-        delta_color = "normal" if abs(upside) < 5 else ("inverse" if upside < 0 else "normal")
         with cols[i]:
             st.metric(
-                label=f"{case.upper()} implied",
+                label=f"{SCENARIO_LABELS[case]} implicito",
                 value=f"{ccy} {s['implied_share_price']:.2f}",
-                delta=f"{upside:+.1f}% vs market",
+                delta=f"{upside:+.1f}% vs mercado",
             )
+
+
+def _plotly_dark_layout(fig, title):
+    fig.update_layout(
+        title=dict(text=title, font=dict(color="#FFFFFF", size=18, family="sans-serif", weight=700)),
+        paper_bgcolor=SPOTIFY_BG,
+        plot_bgcolor=SPOTIFY_CARD,
+        font=dict(color="#FFFFFF", family="sans-serif"),
+        xaxis=dict(gridcolor=SPOTIFY_TERTIARY, color=SPOTIFY_TEXT_MUTED),
+        yaxis=dict(gridcolor=SPOTIFY_TERTIARY, color=SPOTIFY_TEXT_MUTED),
+        legend=dict(bgcolor=SPOTIFY_CARD, bordercolor=SPOTIFY_TERTIARY),
+        height=420,
+    )
+    return fig
 
 
 def render_projection_chart(inputs, scenarios):
@@ -192,17 +309,12 @@ def render_projection_chart(inputs, scenarios):
     proj = scenarios["base"]["projection"]
     years = [f"Y{y}" for y in proj["years"]]
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=years, y=proj["revenue"], name="Revenue", marker_color="#1F4E79"))
-    fig.add_trace(go.Bar(x=years, y=proj["ebitda"], name="EBITDA", marker_color="#5B9BD5"))
-    fig.add_trace(go.Bar(x=years, y=proj["fcf"], name="FCF (Unlevered)", marker_color="#70AD47"))
-    fig.add_trace(go.Scatter(x=years, y=proj["pv_fcf"], name="PV of FCF", mode="lines+markers", line=dict(color="#C00000", width=3)))
-    fig.update_layout(
-        title=f"10-Year Projection — Base Case ({ccy} M)",
-        xaxis_title="Projection year",
-        yaxis_title=f"Amount ({ccy} M)",
-        barmode="group",
-        height=400,
-    )
+    fig.add_trace(go.Bar(x=years, y=proj["revenue"], name="Ingresos", marker_color=SPOTIFY_GREEN))
+    fig.add_trace(go.Bar(x=years, y=proj["ebitda"], name="EBITDA", marker_color="#1ED760"))
+    fig.add_trace(go.Bar(x=years, y=proj["fcf"], name="FCF (Unlevered)", marker_color="#7CE3A4"))
+    fig.add_trace(go.Scatter(x=years, y=proj["pv_fcf"], name="VP del FCF", mode="lines+markers", line=dict(color="#FFFFFF", width=3)))
+    _plotly_dark_layout(fig, f"Proyeccion 10 anos - Caso Base ({ccy} M)")
+    fig.update_layout(xaxis_title="Ano proyectado", yaxis_title=f"Importe ({ccy} M)", barmode="group")
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -237,26 +349,23 @@ def render_sensitivity_heatmap(inputs, scenarios):
         z=matrix,
         x=[f"{w:.1f}%" for w in wacc_range],
         y=[f"{tg:.1f}%" for tg in tg_range],
-        colorscale="RdYlGn",
+        colorscale=[[0, "#3F3F3F"], [0.5, "#1DB954"], [1, "#1ED760"]],
         text=[[f"{v:.1f}" if v is not None else "" for v in row] for row in matrix],
         texttemplate="%{text}",
-        hovertemplate="WACC: %{x}<br>Terminal g: %{y}<br>Implied: %{z:.2f}<extra></extra>",
+        hovertemplate="WACC: %{x}<br>g Terminal: %{y}<br>Implicito: %{z:.2f}<extra></extra>",
     ))
-    fig.update_layout(
-        title="Sensitivity: Implied Share Price vs WACC and Terminal Growth",
-        xaxis_title="WACC",
-        yaxis_title="Terminal Growth",
-        height=400,
-    )
+    _plotly_dark_layout(fig, "Sensibilidad: Precio implicito vs WACC y Crecimiento Terminal")
+    fig.update_layout(xaxis_title="WACC", yaxis_title="Crecimiento Terminal")
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_historicals_table(inputs):
     hist = inputs["historical"]
     fy_keys = sorted(hist.keys())
+    label_map = {"revenue": "Ingresos", "ebitda": "EBITDA", "ebit": "EBIT", "da": "D&A", "capex": "CapEx", "fcf": "FCF", "net_income": "Beneficio neto"}
     rows = []
-    for label, key in [("Revenue", "revenue"), ("EBITDA", "ebitda"), ("EBIT", "ebit"), ("D&A", "da"), ("CapEx", "capex"), ("FCF", "fcf"), ("Net Income", "net_income")]:
-        rows.append({"Metric": label, **{fy: hist[fy].get(key, 0) for fy in fy_keys}})
+    for key, label in label_map.items():
+        rows.append({"Metrica": label, **{fy: hist[fy].get(key, 0) for fy in fy_keys}})
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -264,20 +373,20 @@ def render_historicals_table(inputs):
 def render_projection_table(scenarios):
     base = scenarios["base"]["projection"]
     df = pd.DataFrame({
-        "Year": [f"Y{y}" for y in base["years"]],
-        "Revenue": [round(v) for v in base["revenue"]],
+        "Ano": [f"Y{y}" for y in base["years"]],
+        "Ingresos": [round(v) for v in base["revenue"]],
         "EBITDA": [round(v) for v in base["ebitda"]],
         "EBIT": [round(v) for v in base["ebit"]],
         "FCF": [round(v) for v in base["fcf"]],
-        "Discount Factor": [round(v, 4) for v in base["pv_factor"]],
-        "PV of FCF": [round(v) for v in base["pv_fcf"]],
+        "Factor descuento": [round(v, 4) for v in base["pv_factor"]],
+        "VP del FCF": [round(v) for v in base["pv_fcf"]],
     })
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 def render_comps_table(peers_data):
     if not peers_data:
-        st.info("No peer data fetched. Add peer tickers in sidebar and re-fetch.")
+        st.info("No hay datos de comparables. Anade peers en la barra lateral y recarga.")
         return
     df = pd.DataFrame(peers_data)
     display_cols = ["Company", "Ticker", "Currency", "Revenue_TTM_LCY", "EBITDA_TTM_LCY", "EV_Sales", "EV_EBITDA", "PE_Trailing", "Beta_5Y"]
@@ -285,23 +394,25 @@ def render_comps_table(peers_data):
     display_df["Revenue_TTM_LCY"] = (display_df["Revenue_TTM_LCY"] / 1_000_000).round().astype(int)
     display_df["EBITDA_TTM_LCY"] = (display_df["EBITDA_TTM_LCY"] / 1_000_000).round().astype(int)
     display_df = display_df.rename(columns={
-        "Revenue_TTM_LCY": "Revenue (M LCY)",
+        "Company": "Empresa",
+        "Ticker": "Ticker",
+        "Currency": "Moneda",
+        "Revenue_TTM_LCY": "Ingresos (M LCY)",
         "EBITDA_TTM_LCY": "EBITDA (M LCY)",
-        "EV_Sales": "EV/Sales",
+        "EV_Sales": "EV/Ventas",
         "EV_EBITDA": "EV/EBITDA",
         "PE_Trailing": "P/E (TTM)",
         "Beta_5Y": "Beta",
     })
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    # Stats
-    st.markdown("**Multiples statistics (peers only)**")
+    st.markdown("**Estadisticas de multiplos**")
     nums = pd.DataFrame(peers_data)[["EV_Sales", "EV_EBITDA", "PE_Trailing"]].apply(pd.to_numeric, errors="coerce")
     stats = pd.DataFrame({
-        "EV/Sales": [nums["EV_Sales"].max(), nums["EV_Sales"].quantile(0.75), nums["EV_Sales"].median(), nums["EV_Sales"].quantile(0.25), nums["EV_Sales"].min()],
+        "EV/Ventas": [nums["EV_Sales"].max(), nums["EV_Sales"].quantile(0.75), nums["EV_Sales"].median(), nums["EV_Sales"].quantile(0.25), nums["EV_Sales"].min()],
         "EV/EBITDA": [nums["EV_EBITDA"].max(), nums["EV_EBITDA"].quantile(0.75), nums["EV_EBITDA"].median(), nums["EV_EBITDA"].quantile(0.25), nums["EV_EBITDA"].min()],
         "P/E TTM": [nums["PE_Trailing"].max(), nums["PE_Trailing"].quantile(0.75), nums["PE_Trailing"].median(), nums["PE_Trailing"].quantile(0.25), nums["PE_Trailing"].min()],
-    }, index=["Max", "75th Pct", "Median", "25th Pct", "Min"])
+    }, index=["Maximo", "Percentil 75", "Mediana", "Percentil 25", "Minimo"])
     st.dataframe(stats.round(2), use_container_width=True)
 
 
@@ -309,13 +420,11 @@ def render_downloads(inputs, scenarios, peers_data):
     company = inputs["company"]
     safe_name = company.replace(" ", "_").replace(".", "").lower()
 
-    # DCF xlsx
     dcf_wb = build_dcf_xlsx.build_workbook(inputs)
     dcf_buffer = io.BytesIO()
     dcf_wb.save(dcf_buffer)
     dcf_buffer.seek(0)
 
-    # Comps xlsx (if peers)
     comps_buffer = None
     if peers_data:
         comps_wb = build_comps.build_workbook(inputs, peers_data)
@@ -323,22 +432,19 @@ def render_downloads(inputs, scenarios, peers_data):
         comps_wb.save(comps_buffer)
         comps_buffer.seek(0)
 
-    # Memo
     memo = memo_generator.generate_memo(inputs, scenarios, peers_data)
-
-    # Inputs JSON
     inputs_json = json.dumps(inputs, indent=2, default=str)
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.download_button("DCF model (.xlsx)", data=dcf_buffer, file_name=f"{safe_name}_dcf.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Modelo DCF (.xlsx)", data=dcf_buffer, file_name=f"{safe_name}_dcf.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     with col2:
         if comps_buffer:
-            st.download_button("Comps (.xlsx)", data=comps_buffer, file_name=f"{safe_name}_comps.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("Comparables (.xlsx)", data=comps_buffer, file_name=f"{safe_name}_comps.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
-            st.button("Comps (.xlsx)", disabled=True, help="Add peers in sidebar first")
+            st.button("Comparables (.xlsx)", disabled=True, help="Anade peers en la barra lateral primero")
     with col3:
-        st.download_button("Memo (.md)", data=memo, file_name=f"{safe_name}_analysis.md", mime="text/markdown")
+        st.download_button("Memo (.md)", data=memo, file_name=f"{safe_name}_analisis.md", mime="text/markdown")
     with col4:
         st.download_button("Inputs (.json)", data=inputs_json, file_name=f"{safe_name}_inputs.json", mime="application/json")
 
@@ -349,49 +455,56 @@ def render_warnings(inputs):
     latest = inputs["historical"][hist_keys[-1]] if hist_keys else None
 
     if not md["current_price_eur"]:
-        st.warning("Current price is zero. Verify ticker is correct.")
+        st.warning("Precio actual es cero. Verifica que el ticker es correcto.")
     if not md["market_cap_eur_m"]:
-        st.warning("Market cap is zero. Data may be incomplete.")
+        st.warning("Capitalizacion en cero. Datos pueden estar incompletos.")
     if not latest or latest["revenue"] == 0:
-        st.error("Could not fetch revenue history. Check ticker spelling or try a different exchange suffix (e.g. .L, .MC, .T).")
+        st.error("No se pudo obtener historial de ingresos. Comprueba el ticker o prueba otro sufijo de bolsa (.L, .MC, .T).")
 
 
 def main():
     init_state()
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     render_header()
     ticker, peers, fetch = render_ticker_input()
 
     if fetch:
-        with st.spinner(f"Fetching {ticker} + {len(peers)} peers..."):
+        with st.spinner(f"Cargando {ticker} + {len(peers)} comparables..."):
             try:
                 inputs = data_fetcher.fetch_company(ticker, peer_tickers=peers)
                 peers_data = inputs.pop("peers_data", None) if "peers_data" in inputs else data_fetcher.fetch_peers(peers, inputs["as_of_date"])
                 st.session_state.inputs = inputs
                 st.session_state.peers_data = peers_data
                 st.session_state.scenarios = None
-                st.success(f"Fetched {inputs['company']} ({ticker}) + {len(peers_data)} peers")
+                st.success(f"Cargado {inputs['company']} ({ticker}) + {len(peers_data)} comparables")
             except Exception as e:
-                st.error(f"Fetch failed: {e}")
+                st.error(f"Error en carga de datos: {e}")
                 return
 
     if st.session_state.inputs is None:
-        st.info("Enter a target ticker and peer list in the sidebar, then click **Fetch data**.")
+        st.info("Selecciona una empresa objetivo y comparables en la barra lateral, despues click **Cargar datos**.")
         st.markdown("---")
         st.markdown(
             """
-            ### What this app does
-            1. Pulls 5Y historicals + current market data via Yahoo Finance
-            2. Builds a 10-year unlevered FCF projection (Bear / Base / Bull)
-            3. Discounts at WACC via CAPM
-            4. Blended terminal value (perpetuity growth + exit multiple)
-            5. Cross-checks against 3 to 5 listed peers
-            6. Exports institutional-grade xlsx + memo
+            ### Como funciona
 
-            ### Disclaimer
-            NOT INVESTMENT ADVICE. Educational tool. Verify against company annual report. Past performance does not predict future results.
+            1. Selecciona una empresa cotizada (372 disponibles US/EU/Asia/LatAm)
+            2. Elige 3 a 6 comparables del mismo sector
+            3. Ajusta WACC y supuestos de escenarios (Pesimista / Base / Optimista)
+            4. Obtienes proyeccion 10 anos, valor implicito, sensibilidad, comparables
+            5. Descarga modelo Excel + memo + inputs
 
-            ### Powered by
-            [Anthropic financial-services](https://github.com/anthropics/financial-services) (Apache 2.0). DCF, comps, and audit skill methodology.
+            ### Metodologia
+
+            DCF con 10 anos explicitos. WACC via CAPM. Valor terminal mezclado (perpetuidad + multiplo salida). Cross-check contra peer multiples.
+
+            ### Aviso legal
+
+            **NO ES ASESORAMIENTO FINANCIERO.** Herramienta educativa y producto analista. Verificar contra reporte anual oficial. Rendimientos pasados no predicen futuros.
+
+            ### Construido con
+
+            Skills open-source de [Anthropic financial-services](https://github.com/anthropics/financial-services) (Apache 2.0). DCF, comparables y auditoria.
             """
         )
         return
@@ -399,24 +512,21 @@ def main():
     inputs = st.session_state.inputs
     peers_data = st.session_state.peers_data
 
-    # Sidebar controls
     inputs = render_wacc_controls(inputs)
 
     with st.sidebar:
-        st.header("3. Scenarios")
+        st.header("Escenarios")
     for scen in ["bear", "base", "bull"]:
         with st.sidebar:
             inputs = render_scenario_controls(inputs, scen)
 
-    # Compute scenarios
     try:
         scenarios = compute_dcf.run_all(inputs)
     except Exception as e:
-        st.error(f"DCF compute failed: {e}")
+        st.error(f"Error en calculo DCF: {e}")
         return
     st.session_state.scenarios = scenarios
 
-    # Main panel
     company = inputs["company"]
     ticker = inputs["ticker"]
     st.header(f"{company} ({ticker})")
@@ -424,20 +534,27 @@ def main():
     render_warnings(inputs)
     render_market_data_summary(inputs)
 
-    st.markdown("### Valuation scenarios")
+    st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
 
-    tabs = st.tabs(["Overview", "Projection", "Sensitivity", "Comps", "Historicals", "Downloads"])
+    tabs = st.tabs(["Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas"])
 
     with tabs[0]:
-        st.markdown(f"**Base case implied price: {inputs['currency']} {scenarios['base']['dcf']['implied_share_price']:.2f}**")
+        ccy = inputs["currency"]
+        st.markdown(f"**Precio implicito caso base: {ccy} {scenarios['base']['dcf']['implied_share_price']:.2f}**")
         upside = (scenarios["base"]["dcf"]["implied_share_price"] / inputs["market_data"]["current_price_eur"] - 1) * 100
-        st.markdown(f"**Upside vs market: {upside:+.1f}%**")
+        st.markdown(f"**Potencial vs mercado: {upside:+.1f}%**")
         st.markdown("---")
-        st.markdown("**Valuation bridge (Base case)**")
+        st.markdown("**Puente de valoracion (Caso Base)**")
         bridge_data = {
-            "Component": ["Sum PV(FCF) Y1-Y10", "PV Terminal Value", "(=) Enterprise Value", "(+) Net Cash", "(=) Equity Value"],
-            "Value": [
+            "Componente": [
+                "Suma VP(FCF) Y1-Y10",
+                "VP Valor Terminal",
+                "(=) Valor Empresa (EV)",
+                "(+) Caja neta",
+                "(=) Valor Equity",
+            ],
+            "Valor": [
                 scenarios["base"]["dcf"]["sum_pv_fcf"],
                 scenarios["base"]["dcf"]["pv_tv_blended"],
                 scenarios["base"]["dcf"]["enterprise_value"],
@@ -446,42 +563,42 @@ def main():
             ],
         }
         bridge_df = pd.DataFrame(bridge_data)
-        bridge_df["Value"] = bridge_df["Value"].round(0).astype(int)
+        bridge_df["Valor"] = bridge_df["Valor"].round(0).astype(int)
         st.dataframe(bridge_df, use_container_width=True, hide_index=True)
         tv_pct = scenarios["base"]["dcf"]["tv_pct_of_ev"]
         if 50 <= tv_pct <= 70:
-            st.success(f"Sanity check: Terminal % of EV = {tv_pct:.1f}% (within 50-70% acceptable band)")
+            st.success(f"Check: Terminal {tv_pct:.1f}% del EV (banda aceptable 50-70%)")
         else:
-            st.warning(f"Sanity check: Terminal % of EV = {tv_pct:.1f}% (OUTSIDE 50-70% typical range)")
+            st.warning(f"Check: Terminal {tv_pct:.1f}% del EV (FUERA del rango tipico 50-70%)")
 
     with tabs[1]:
         render_projection_chart(inputs, scenarios)
-        st.markdown("**Detailed projection table**")
+        st.markdown("**Tabla detallada de proyeccion**")
         render_projection_table(scenarios)
 
     with tabs[2]:
         render_sensitivity_heatmap(inputs, scenarios)
         st.caption(
-            "Implied share price at each combination of WACC and terminal growth rate. "
-            "Holds explicit FCFs constant at base WACC; varies only terminal."
+            "Precio implicito a cada combinacion de WACC y crecimiento terminal. "
+            "Mantiene FCFs explicitos al WACC base; solo varia el terminal."
         )
 
     with tabs[3]:
-        st.markdown("**Peer companies**")
+        st.markdown("**Empresas comparables**")
         render_comps_table(peers_data)
 
     with tabs[4]:
-        st.markdown("**Historical financials (last 5 fiscal years available)**")
+        st.markdown("**Financieros historicos (ultimos 5 anos disponibles)**")
         render_historicals_table(inputs)
 
     with tabs[5]:
-        st.markdown("**Download analysis deliverables**")
+        st.markdown("**Descargar deliverables**")
         render_downloads(inputs, scenarios, peers_data)
 
     st.markdown("---")
     st.caption(
-        "NOT INVESTMENT ADVICE. Educational tool. Verify against official annual report. "
-        "Built on Anthropic financial-services skills (Apache 2.0)."
+        "NO ES ASESORAMIENTO FINANCIERO. Herramienta educativa. Verificar contra reporte anual oficial. "
+        "Construido con skills de Anthropic financial-services (Apache 2.0)."
     )
 
 

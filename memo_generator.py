@@ -1,6 +1,9 @@
-"""Generate dcf-analysis.md memo from inputs + scenarios."""
+"""Generate memo de analisis DCF en espanol desde inputs + scenarios."""
 
 from typing import Optional
+
+
+SCENARIO_LABELS = {"bear": "Pesimista", "base": "Base", "bull": "Optimista"}
 
 
 def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = None) -> str:
@@ -24,113 +27,114 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     upside_bull = (bull_price / current - 1) * 100 if current else 0
     tv_pct = base["dcf"]["tv_pct_of_ev"]
 
-    recommendation = _recommend(upside_base, tv_pct, current, base_price)
+    recommendation = _recommend(upside_base, tv_pct)
 
     lines = [
-        f"# {company} ({ticker}) DCF Valuation",
+        f"# Valoracion DCF: {company} ({ticker})",
         "",
-        f"**As of {as_of}** | Methodology: 10-year explicit Unlevered FCF projection, blended terminal (perpetuity growth + exit multiple). All figures {ccy}.",
+        f"**Fecha: {as_of}** | Metodologia: Proyeccion explicita 10 anos de FCF Unlevered, valor terminal mezclado (crecimiento perpetuo + multiplo de salida). Cifras en {ccy}.",
         "",
-        "## Executive Summary",
+        "## Resumen Ejecutivo",
         "",
-        "| Metric | Value |",
+        "| Metrica | Valor |",
         "|---|---:|",
-        f"| Current share price | {ccy} {current:.2f} |",
-        f"| Base case implied price | {ccy} {base_price:.2f} |",
-        f"| **Upside vs market** | **{upside_base:+.1f}%** |",
-        f"| Bear case implied | {ccy} {bear_price:.2f} ({upside_bear:+.1f}%) |",
-        f"| Bull case implied | {ccy} {bull_price:.2f} ({upside_bull:+.1f}%) |",
+        f"| Precio actual | {ccy} {current:.2f} |",
+        f"| Precio implicito Base | {ccy} {base_price:.2f} |",
+        f"| **Potencial vs mercado** | **{upside_base:+.1f}%** |",
+        f"| Caso Pesimista | {ccy} {bear_price:.2f} ({upside_bear:+.1f}%) |",
+        f"| Caso Optimista | {ccy} {bull_price:.2f} ({upside_bull:+.1f}%) |",
         f"| WACC | {wacc_d['wacc_pct']:.2f}% |",
-        f"| Terminal % of EV | {tv_pct:.1f}% ({'within' if 50 <= tv_pct <= 70 else 'OUTSIDE'} 50-70% sanity band) |",
+        f"| Terminal % del EV | {tv_pct:.1f}% ({'dentro' if 50 <= tv_pct <= 70 else 'FUERA'} banda 50-70%) |",
         "",
-        f"**Recommendation:** {recommendation}",
+        f"**Recomendacion:** {recommendation}",
         "",
-        "## Methodology",
+        "## Metodologia",
         "",
-        "### Historical financials",
+        "### Financieros historicos",
         "",
-        "| Metric | " + " | ".join(sorted(inputs["historical"].keys())) + " |",
+        "| Metrica | " + " | ".join(sorted(inputs["historical"].keys())) + " |",
         "|---|" + "---:|" * len(inputs["historical"]),
     ]
     fy_keys = sorted(inputs["historical"].keys())
-    for label, key in [("Revenue", "revenue"), ("EBITDA", "ebitda"), ("EBIT", "ebit"), ("D&A", "da"), ("CapEx", "capex"), ("FCF", "fcf")]:
+    label_map = [("Ingresos", "revenue"), ("EBITDA", "ebitda"), ("EBIT", "ebit"), ("D&A", "da"), ("CapEx", "capex"), ("FCF", "fcf")]
+    for label, key in label_map:
         row = f"| {label} | " + " | ".join(f"{inputs['historical'][fy].get(key, 0):,}" for fy in fy_keys) + " |"
         lines.append(row)
     lines.append("")
 
     lines.extend([
-        "### WACC build (CAPM)",
+        "### Construccion del WACC (CAPM)",
         "",
-        "| Component | Value | Source |",
+        "| Componente | Valor | Fuente |",
         "|---|---:|---|",
-        f"| Risk-free rate | {wacc_d['risk_free_rate_pct']:.2f}% | {wacc_d['risk_free_source']} |",
-        f"| Equity risk premium | {wacc_d['equity_risk_premium_pct']:.2f}% | {wacc_d['erp_source']} |",
-        f"| Beta (5Y) | {wacc_d['beta']:.2f} | yfinance |",
-        f"| **Cost of equity** | **{wacc_d['cost_of_equity_pct']:.2f}%** | Rf + Beta * ERP |",
-        f"| Tax rate | {wacc_d['tax_rate_pct']:.1f}% | |",
-        f"| **WACC** | **{wacc_d['wacc_pct']:.2f}%** | Applied to all scenarios |",
+        f"| Tasa libre de riesgo | {wacc_d['risk_free_rate_pct']:.2f}% | {wacc_d['risk_free_source']} |",
+        f"| Prima de riesgo del mercado | {wacc_d['equity_risk_premium_pct']:.2f}% | {wacc_d['erp_source']} |",
+        f"| Beta (5 anos) | {wacc_d['beta']:.2f} | yfinance |",
+        f"| **Coste del Equity** | **{wacc_d['cost_of_equity_pct']:.2f}%** | Rf + Beta * ERP |",
+        f"| Tipo impositivo | {wacc_d['tax_rate_pct']:.1f}% | |",
+        f"| **WACC** | **{wacc_d['wacc_pct']:.2f}%** | Aplicado a todos los escenarios |",
         "",
-        f"Net position: {ccy} {md['net_cash_eur_m']:,}M {'(net cash)' if md['net_cash_eur_m'] > 0 else '(net debt)'}.",
+        f"Posicion financiera: {ccy} {md['net_cash_eur_m']:,}M {'(caja neta)' if md['net_cash_eur_m'] > 0 else '(deuda neta)'}.",
         "",
-        "### Projection (Base case, 10Y explicit)",
+        "### Proyeccion (Caso Base, 10 anos explicitos)",
         "",
-        "| Year | " + " | ".join(f"Y{y}" for y in range(1, 11)) + " |",
+        "| Ano | " + " | ".join(f"Y{y}" for y in range(1, 11)) + " |",
         "|---|" + "---:|" * 10,
     ])
 
     proj = base["projection"]
     base_rev = inputs["historical"][fy_keys[-1]]["revenue"]
-    growth_row = "| Growth % |"
+    growth_row = "| Crecimiento % |"
     prev = base_rev
     for r in proj["revenue"]:
         g = (r / prev - 1) * 100 if prev else 0
         growth_row += f" {g:+.1f}% |"
         prev = r
     lines.append(growth_row)
-    lines.append("| Revenue | " + " | ".join(f"{r:,.0f}" for r in proj["revenue"]) + " |")
+    lines.append("| Ingresos | " + " | ".join(f"{r:,.0f}" for r in proj["revenue"]) + " |")
     lines.append("| EBITDA | " + " | ".join(f"{e:,.0f}" for e in proj["ebitda"]) + " |")
     lines.append("| FCF | " + " | ".join(f"{f:,.0f}" for f in proj["fcf"]) + " |")
-    lines.append("| PV(FCF) | " + " | ".join(f"{p:,.0f}" for p in proj["pv_fcf"]) + " |")
+    lines.append("| VP(FCF) | " + " | ".join(f"{p:,.0f}" for p in proj["pv_fcf"]) + " |")
     lines.append("")
 
     lines.extend([
-        "### Terminal value",
+        "### Valor Terminal",
         "",
-        "| Method | Gross TV | PV TV |",
+        "| Metodo | TV Bruto | VP del TV |",
         "|---|---:|---:|",
-        f"| Perpetuity growth ({base['tg']:.1f}%) | {base['dcf']['tv_perpetuity']:,.0f} | {base['dcf']['pv_tv_perpetuity']:,.0f} |",
-        f"| Exit multiple ({base['em']:.1f}x EBITDA Y10) | {base['dcf']['tv_exit_multiple']:,.0f} | {base['dcf']['pv_tv_exit']:,.0f} |",
-        f"| **Blended PV** | | **{base['dcf']['pv_tv_blended']:,.0f}** |",
+        f"| Crecimiento perpetuo ({base['tg']:.1f}%) | {base['dcf']['tv_perpetuity']:,.0f} | {base['dcf']['pv_tv_perpetuity']:,.0f} |",
+        f"| Multiplo salida ({base['em']:.1f}x EBITDA Y10) | {base['dcf']['tv_exit_multiple']:,.0f} | {base['dcf']['pv_tv_exit']:,.0f} |",
+        f"| **VP mezclado** | | **{base['dcf']['pv_tv_blended']:,.0f}** |",
         "",
-        "### Valuation summary",
+        "### Resumen de Valoracion",
         "",
-        "| Component | Value |",
+        "| Componente | Valor |",
         "|---|---:|",
-        f"| Sum PV of explicit FCFs (Y1-Y10) | {ccy} {base['dcf']['sum_pv_fcf']:,.0f}M |",
-        f"| PV of Terminal value | {ccy} {base['dcf']['pv_tv_blended']:,.0f}M |",
-        f"| **Enterprise Value** | **{ccy} {base['dcf']['enterprise_value']:,.0f}M** |",
-        f"| (+) Net cash | {ccy} {md['net_cash_eur_m']:,}M |",
-        f"| **Equity Value** | **{ccy} {base['dcf']['equity_value']:,.0f}M** |",
-        f"| (/) Shares outstanding (M) | {md['shares_outstanding_m']:,} |",
-        f"| **Implied share price** | **{ccy} {base_price:.2f}** |",
+        f"| Suma VP de FCF explicitos (Y1-Y10) | {ccy} {base['dcf']['sum_pv_fcf']:,.0f}M |",
+        f"| VP del Valor Terminal | {ccy} {base['dcf']['pv_tv_blended']:,.0f}M |",
+        f"| **Valor Empresa (EV)** | **{ccy} {base['dcf']['enterprise_value']:,.0f}M** |",
+        f"| (+) Caja neta | {ccy} {md['net_cash_eur_m']:,}M |",
+        f"| **Valor Equity** | **{ccy} {base['dcf']['equity_value']:,.0f}M** |",
+        f"| (/) Acciones en circulacion (M) | {md['shares_outstanding_m']:,} |",
+        f"| **Precio implicito por accion** | **{ccy} {base_price:.2f}** |",
         "",
-        "## Scenarios",
+        "## Escenarios",
         "",
-        "| Scenario | Terminal g | Exit mult | Implied price | Upside |",
+        "| Escenario | Crec. Terminal | Multiplo salida | Precio implicito | Potencial |",
         "|---|---:|---:|---:|---:|",
-        f"| Bear | {bear['tg']:.1f}% | {bear['em']:.1f}x | {ccy} {bear_price:.2f} | {upside_bear:+.1f}% |",
+        f"| Pesimista | {bear['tg']:.1f}% | {bear['em']:.1f}x | {ccy} {bear_price:.2f} | {upside_bear:+.1f}% |",
         f"| **Base** | **{base['tg']:.1f}%** | **{base['em']:.1f}x** | **{ccy} {base_price:.2f}** | **{upside_base:+.1f}%** |",
-        f"| Bull | {bull['tg']:.1f}% | {bull['em']:.1f}x | {ccy} {bull_price:.2f} | {upside_bull:+.1f}% |",
+        f"| Optimista | {bull['tg']:.1f}% | {bull['em']:.1f}x | {ccy} {bull_price:.2f} | {upside_bull:+.1f}% |",
         "",
     ])
 
     if peers_data:
         lines.extend([
-            "## Comps cross-check",
+            "## Cross-check con comparables",
             "",
-            "Peer multiples (TTM):",
+            "Multiplos peer (TTM):",
             "",
-            "| Company | EV/Sales | EV/EBITDA | P/E (TTM) |",
+            "| Empresa | EV/Ventas | EV/EBITDA | P/E (TTM) |",
             "|---|---:|---:|---:|",
         ])
         for p in peers_data:
@@ -142,44 +146,44 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     lines.extend([
         "## Sanity checks",
         "",
-        f"- Terminal % of EV: {tv_pct:.1f}% ({'PASS' if 50 <= tv_pct <= 70 else 'FLAG - outside typical 50-70% range'})",
-        f"- Bear/Bull spread: {abs(upside_bull - upside_bear):.0f}pp ({'reasonable' if 50 <= abs(upside_bull - upside_bear) <= 150 else 'flag - check assumptions'})",
-        f"- WACC: {wacc_d['wacc_pct']:.2f}% ({'reasonable' if 6 <= wacc_d['wacc_pct'] <= 15 else 'verify'})",
+        f"- Terminal % del EV: {tv_pct:.1f}% ({'PASS' if 50 <= tv_pct <= 70 else 'FLAG - fuera del rango tipico 50-70%'})",
+        f"- Spread Pesimista/Optimista: {abs(upside_bull - upside_bear):.0f}pp ({'razonable' if 50 <= abs(upside_bull - upside_bear) <= 150 else 'verificar supuestos'})",
+        f"- WACC: {wacc_d['wacc_pct']:.2f}% ({'razonable' if 6 <= wacc_d['wacc_pct'] <= 15 else 'verificar'})",
         "",
-        "## Limitations",
+        "## Limitaciones",
         "",
-        "1. Data sourced via yfinance API. Verify against company official annual report for production deliverable.",
-        "2. Sensitivity tables in xlsx vary only terminal at base WACC. For full WACC sensitivity, modify inputs and rerun.",
-        "3. No 3-statement integration. Operating lease liabilities (IFRS 16) embedded in EBITDA.",
-        "4. Default projection assumptions are generic. Review per industry / company guidance.",
-        "5. WACC inputs use defaults if not customized in UI. Country risk premium and beta should be company-specific.",
+        "1. Datos via API yfinance. Verificar contra reporte anual oficial para deliverable de produccion.",
+        "2. Tablas de sensibilidad en xlsx varian solo el terminal al WACC base. Para sensibilidad completa de WACC, modificar inputs y recalcular.",
+        "3. Sin integracion 3-statement. Operating lease liabilities (IFRS 16) embebidos en EBITDA.",
+        "4. Supuestos de proyeccion por defecto genericos. Revisar segun industria / guidance de la empresa.",
+        "5. Inputs WACC usan defaults si no se personalizan en UI. Country risk premium y beta deben ser company-specific.",
         "",
-        "## DISCLAIMER",
+        "## AVISO LEGAL",
         "",
-        "NOT INVESTMENT ADVICE. Educational case study and analyst work product. Verify all figures against company official annual report. Past performance does not predict future results.",
+        "NO ES ASESORAMIENTO FINANCIERO. Case study educativo y producto analista. Verificar contra reporte anual oficial. Rendimientos pasados no predicen futuros.",
         "",
-        "Built using Anthropic financial-services skill prompts (Apache 2.0). Repository: https://github.com/anthropics/financial-services.",
+        "Construido con skills open-source de Anthropic financial-services (Apache 2.0). Repositorio: https://github.com/anthropics/financial-services.",
         "",
-        f"Generated: {as_of}",
+        f"Generado: {as_of}",
     ])
 
     return "\n".join(lines)
 
 
-def _recommend(upside: float, tv_pct: float, current: float, implied: float) -> str:
+def _recommend(upside: float, tv_pct: float) -> str:
     if upside > 30:
-        rec = "**Significant upside.** Bull case implied; verify thesis durability."
+        rec = "**Potencial significativo.** Escenario optimista implicito; verificar durabilidad de la tesis."
     elif 10 <= upside <= 30:
-        rec = "**Moderate upside.** Quality / valuation tradeoff balanced. Consider entry on drawdown."
+        rec = "**Potencial moderado.** Balance calidad/valoracion equilibrado. Considerar entrada en correccion."
     elif -10 <= upside < 10:
-        rec = "**Fair value.** Market roughly aligned with intrinsic. No clear margin of safety."
+        rec = "**Valor justo.** Mercado alineado con valor intrinseco. Sin margen de seguridad claro."
     elif -30 < upside < -10:
-        rec = "**Overvalued.** Market pays premium not supported by base case cash flows."
+        rec = "**Sobrevalorado.** Mercado paga premium no respaldado por flujos del caso base."
     else:
-        rec = "**Significantly overvalued by DCF.** Bear case territory. Either thesis weak or sentiment is the driver."
+        rec = "**Muy sobrevalorado por DCF.** Territorio caso pesimista. Tesis debil o sentiment es el driver."
 
     if tv_pct > 75:
-        rec += " ALSO: terminal value dominates (>75% of EV) so result hinges heavily on terminal assumptions."
+        rec += " IMPORTANTE: El valor terminal domina (>75% del EV), el resultado depende fuertemente de los supuestos terminales."
 
     return rec
 
