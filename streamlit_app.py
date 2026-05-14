@@ -15,6 +15,7 @@ Run locally (requires pyarrow which lacks Win ARM64 wheels):
 import io
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -58,16 +59,56 @@ def render_header():
         )
 
 
+@st.cache_data
+def load_companies():
+    """Load curated company list from companies.json. Returns flat list of 'Name (TICKER)' strings + lookup dict."""
+    path = Path(__file__).parent / "companies.json"
+    if not path.exists():
+        return [], {}
+    grouped = json.loads(path.read_text(encoding="utf-8"))
+    labels = []
+    lookup = {}
+    for region, companies in grouped.items():
+        for name, ticker in companies.items():
+            label = f"{name} ({ticker})"
+            labels.append(label)
+            lookup[label] = ticker
+    return labels, lookup
+
+
 def render_ticker_input():
+    labels, lookup = load_companies()
     with st.sidebar:
         st.header("1. Target & Peers")
-        ticker = st.text_input("Target ticker", value="AAPL", help="e.g. AAPL, MSFT, ITX.MC, 9983.T")
-        peers_raw = st.text_input(
-            "Peer tickers (comma-separated)",
-            value="MSFT,GOOG,META,AMZN,NFLX",
-            help="3 to 6 listed peers in same industry",
+        st.caption(f"{len(labels)} listed companies across US, EU, Asia, LatAm. Type to search.")
+
+        default_target = next((l for l in labels if "(AAPL)" in l), labels[0] if labels else "")
+        target_label = st.selectbox(
+            "Target company",
+            options=labels,
+            index=labels.index(default_target) if default_target in labels else 0,
+            help="Search by name or ticker. Type to filter.",
         )
-        peers = [t.strip() for t in peers_raw.split(",") if t.strip()]
+        ticker = lookup.get(target_label, "AAPL")
+
+        default_peers_tickers = {"MSFT", "GOOGL", "META", "AMZN", "NFLX"}
+        default_peers_labels = [l for l in labels if lookup.get(l) in default_peers_tickers]
+        peer_labels = st.multiselect(
+            "Peer companies",
+            options=labels,
+            default=default_peers_labels,
+            help="Pick 3 to 6 peers. Search by name or ticker.",
+        )
+        peers = [lookup[l] for l in peer_labels if l in lookup]
+
+        with st.expander("Custom tickers (advanced)"):
+            custom_target = st.text_input("Override target ticker", value="", help="Use if company not in dropdown. e.g. ITX.MC")
+            custom_peers = st.text_input("Override peer tickers (comma)", value="", help="e.g. ITX.MC, HM-B.ST")
+            if custom_target.strip():
+                ticker = custom_target.strip()
+            if custom_peers.strip():
+                peers = [t.strip() for t in custom_peers.split(",") if t.strip()]
+
         fetch = st.button("Fetch data", type="primary", use_container_width=True)
         return ticker, peers, fetch
 
