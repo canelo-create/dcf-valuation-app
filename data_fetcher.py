@@ -9,9 +9,34 @@ Usage:
 """
 
 import datetime as dt
+import time
 from typing import Optional
 
+import requests
 import yfinance as yf
+
+
+class RateLimited(Exception):
+    """Raised when the upstream data source rate-limits us."""
+
+
+def _yf_info_with_retry(ticker: str, retries: int = 3, base_delay: float = 1.5):
+    """Fetch yfinance .info with exponential backoff on rate limits."""
+    last_err = None
+    for attempt in range(retries):
+        try:
+            yt = yf.Ticker(ticker)
+            info = yt.info or {}
+            # yfinance returns a near-empty dict on soft rate-limit
+            if info and (info.get("currentPrice") or info.get("regularMarketPrice") or info.get("marketCap")):
+                return yt, info
+            last_err = "empty info (possible soft rate-limit)"
+        except Exception as e:
+            last_err = str(e)
+            if "too many requests" in last_err.lower() or "429" in last_err or "rate" in last_err.lower():
+                pass  # fall through to backoff
+        time.sleep(base_delay * (2 ** attempt))
+    raise RateLimited(f"yfinance failed for {ticker} after {retries} tries: {last_err}")
 
 
 def _safe(d, key, default=0):
@@ -52,8 +77,7 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
     if as_of_date is None:
         as_of_date = dt.date.today().isoformat()
 
-    yt = yf.Ticker(ticker)
-    info = yt.info or {}
+    yt, info = _yf_info_with_retry(ticker)
     company = info.get("longName") or info.get("shortName") or ticker
     currency = info.get("currency") or "USD"
     fy_end = info.get("lastFiscalYearEnd")
@@ -213,9 +237,19 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
 
 
 def fetch_peer(ticker: str, as_of_date: str) -> dict:
-    """Fetch comps data for a single peer."""
-    yt = yf.Ticker(ticker)
-    info = yt.info or {}
+    """Fetch comps data for a single peer. Returns partial dict on rate-limit (does not crash the whole run)."""
+    try:
+        yt, info = _yf_info_with_retry(ticker, retries=2)
+    except RateLimited:
+        return {
+            "Company": ticker, "Ticker": ticker, "Currency": "USD",
+            "Revenue_TTM_LCY": 0, "Gross_Profit_TTM_LCY": 0, "EBITDA_TTM_LCY": 0,
+            "Net_Income_TTM_LCY": 0, "Operating_Margin_pct": 0, "Net_Margin_pct": 0,
+            "Market_Cap_LCY": 0, "Enterprise_Value_LCY": 0, "EV_Sales": 0, "EV_EBITDA": 0,
+            "PE_Trailing": 0, "PE_Forward": 0, "Beta_5Y": 1.0, "Shares_Outstanding": 0,
+            "Stock_Price_LCY": 0, "Total_Cash_LCY": 0, "Total_Debt_LCY": 0,
+            "As_of_Date": as_of_date, "_error": "rate_limited",
+        }
     name = info.get("longName") or info.get("shortName") or ticker
     currency = info.get("currency") or "USD"
 

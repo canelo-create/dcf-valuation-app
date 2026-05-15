@@ -277,6 +277,20 @@ def load_companies():
     return labels, lookup
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_fetch_company(ticker: str):
+    """Cache 1h: a ticker fetched once is reused, dramatically cutting Yahoo calls
+    and surviving rate-limit windows once data is in cache."""
+    inputs = data_fetcher.fetch_company(ticker, peer_tickers=[])
+    inputs.pop("peers_data", None)
+    return inputs
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_fetch_peers(peers_tuple: tuple, as_of: str):
+    return data_fetcher.fetch_peers(list(peers_tuple), as_of)
+
+
 def render_ticker_input():
     labels, lookup = load_companies()
     with st.sidebar:
@@ -570,11 +584,16 @@ def run_simple_mode():
     if analizar:
         with st.spinner(f"Buscando datos reales de {ticker}..."):
             try:
-                inputs = data_fetcher.fetch_company(ticker, peer_tickers=[])
-                inputs.pop("peers_data", None)
+                inputs = cached_fetch_company(ticker)
                 st.session_state.inputs = inputs
                 st.session_state.peers_data = None
                 st.session_state.scenarios = None
+            except data_fetcher.RateLimited:
+                st.error(
+                    "**Yahoo Finance esta limitando peticiones ahora mismo** (no es la app, es la fuente de datos gratuita). "
+                    "Espera 1-2 minutos y pulsa Analizar otra vez. Una vez cargada, la empresa queda en cache 1h y no se vuelve a pedir."
+                )
+                return
             except Exception as e:
                 st.error(f"No pude cargar {ticker}: {e}. Prueba otro ticker o anade sufijo de bolsa (.MC Espana, .L Londres, .T Tokio).")
                 return
@@ -629,12 +648,22 @@ def run_expert_mode():
     if fetch:
         with st.spinner(f"Cargando {ticker} + {len(peers)} comparables..."):
             try:
-                inputs = data_fetcher.fetch_company(ticker, peer_tickers=peers)
-                peers_data = inputs.pop("peers_data", None) if "peers_data" in inputs else data_fetcher.fetch_peers(peers, inputs["as_of_date"])
+                inputs = cached_fetch_company(ticker)
+                peers_data = cached_fetch_peers(tuple(peers), inputs["as_of_date"]) if peers else []
                 st.session_state.inputs = inputs
                 st.session_state.peers_data = peers_data
                 st.session_state.scenarios = None
-                st.success(f"Cargado {inputs['company']} ({ticker}) + {len(peers_data)} comparables")
+                rl_peers = sum(1 for p in peers_data if p.get("_error") == "rate_limited")
+                msg = f"Cargado {inputs['company']} ({ticker}) + {len(peers_data)} comparables"
+                if rl_peers:
+                    msg += f" ({rl_peers} peers sin datos por rate-limit Yahoo, reintenta luego)"
+                st.success(msg)
+            except data_fetcher.RateLimited:
+                st.error(
+                    "**Yahoo Finance esta limitando peticiones** (fuente gratuita, no la app). "
+                    "Espera 1-2 min y reintenta. Tras cargar, queda en cache 1h."
+                )
+                return
             except Exception as e:
                 st.error(f"Error en carga de datos: {e}")
                 return
