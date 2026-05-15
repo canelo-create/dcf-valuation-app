@@ -18,6 +18,7 @@ import build_comps
 import build_dcf_xlsx
 import compute_dcf
 import data_fetcher
+import explanations
 import memo_generator
 
 st.set_page_config(
@@ -155,11 +156,80 @@ def init_state():
 def render_header():
     st.markdown(
         f"""
-        <div class="hero-title">Valoracion DCF</div>
-        <div class="hero-sub">Analisis financiero institucional para cualquier empresa cotizada. Construido con agentes Anthropic FSI (Apache 2.0).</div>
+        <div class="hero-title">Vale o no vale</div>
+        <div class="hero-sub">Descubre si una accion esta cara o barata. Datos reales, explicado simple.</div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_glossary():
+    with st.expander("Diccionario: que significa cada termino (en cristiano)"):
+        for term, meaning in explanations.GLOSSARY.items():
+            st.markdown(f"**{term}** — {meaning}")
+
+
+def render_simple_verdict(inputs, scenarios):
+    ccy = inputs["currency"]
+    current = inputs["market_data"]["current_price_eur"]
+    base_price = scenarios["base"]["dcf"]["implied_share_price"]
+    bear_price = scenarios["bear"]["dcf"]["implied_share_price"]
+    bull_price = scenarios["bull"]["dcf"]["implied_share_price"]
+    upside = (base_price / current - 1) * 100 if current else 0
+    tv_pct = scenarios["base"]["dcf"]["tv_pct_of_ev"]
+
+    badge, color, parrafo = explanations.verdict(upside, tv_pct, ccy, base_price, current)
+
+    st.markdown(
+        f"""
+        <div style="background-color:#181818;border-radius:12px;padding:2rem;border:2px solid {color};margin-bottom:1.5rem;">
+            <div style="color:{color};font-size:1.5rem;font-weight:900;letter-spacing:0.02em;">{badge}</div>
+            <div style="display:flex;gap:3rem;margin:1.2rem 0;">
+                <div>
+                    <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Precio hoy</div>
+                    <div style="font-size:2rem;font-weight:700;color:#FFF;">{ccy} {current:,.2f}</div>
+                </div>
+                <div>
+                    <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Valor estimado</div>
+                    <div style="font-size:2rem;font-weight:700;color:{color};">{ccy} {base_price:,.2f}</div>
+                </div>
+                <div>
+                    <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Potencial</div>
+                    <div style="font-size:2rem;font-weight:700;color:{color};">{upside:+.0f}%</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(parrafo)
+
+    st.markdown("**Rango segun escenario:**")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Si va mal (Pesimista)", f"{ccy} {bear_price:,.2f}", f"{(bear_price/current-1)*100:+.0f}%" if current else "")
+    c2.metric("Lo mas probable (Base)", f"{ccy} {base_price:,.2f}", f"{upside:+.0f}%")
+    c3.metric("Si va muy bien (Optimista)", f"{ccy} {bull_price:,.2f}", f"{(bull_price/current-1)*100:+.0f}%" if current else "")
+
+
+def render_simple_sidebar():
+    labels, lookup = load_companies()
+    with st.sidebar:
+        st.header("Elige una empresa")
+        st.caption(f"{len(labels)} empresas. Escribe el nombre o el ticker para buscar.")
+        default_target = next((l for l in labels if "(AAPL)" in l), labels[0] if labels else "")
+        target_label = st.selectbox(
+            "Empresa a analizar",
+            options=labels,
+            index=labels.index(default_target) if default_target in labels else 0,
+            help="Por ejemplo: Apple, Inditex, Tesla. Escribe para filtrar.",
+        )
+        ticker = lookup.get(target_label, "AAPL")
+        with st.expander("Otra empresa (ticker manual)"):
+            custom = st.text_input("Ticker", value="", help="Si no esta en la lista. Ej: ITX.MC, NVDA")
+            if custom.strip():
+                ticker = custom.strip()
+        analizar = st.button("Analizar", type="primary", use_container_width=True)
+        return ticker, analizar
 
 
 @st.cache_data
@@ -462,10 +532,66 @@ def render_warnings(inputs):
         st.error("No se pudo obtener historial de ingresos. Comprueba el ticker o prueba otro sufijo de bolsa (.L, .MC, .T).")
 
 
-def main():
-    init_state()
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-    render_header()
+def run_simple_mode():
+    ticker, analizar = render_simple_sidebar()
+    with st.sidebar:
+        st.markdown("---")
+        st.caption("Modo Simple activo. Cambia a Experto arriba para ajustar supuestos.")
+
+    if analizar:
+        with st.spinner(f"Buscando datos reales de {ticker}..."):
+            try:
+                inputs = data_fetcher.fetch_company(ticker, peer_tickers=[])
+                inputs.pop("peers_data", None)
+                st.session_state.inputs = inputs
+                st.session_state.peers_data = None
+                st.session_state.scenarios = None
+            except Exception as e:
+                st.error(f"No pude cargar {ticker}: {e}. Prueba otro ticker o anade sufijo de bolsa (.MC Espana, .L Londres, .T Tokio).")
+                return
+
+    if st.session_state.inputs is None:
+        st.info("Elige una empresa en la barra de la izquierda y pulsa **Analizar**.")
+        st.markdown(explanations.HOW_IT_WORKS)
+        render_glossary()
+        st.markdown("---")
+        st.markdown(explanations.DISCLAIMER_SIMPLE)
+        return
+
+    inputs = st.session_state.inputs
+    try:
+        scenarios = compute_dcf.run_all(inputs)
+    except Exception as e:
+        st.error(f"Error calculando: {e}")
+        return
+    st.session_state.scenarios = scenarios
+
+    st.header(f"{inputs['company']} ({inputs['ticker']})")
+    render_warnings(inputs)
+    render_simple_verdict(inputs, scenarios)
+
+    with st.expander("Como llegamos a esta estimacion"):
+        st.markdown(explanations.HOW_IT_WORKS)
+        st.markdown("**Resumen de la cuenta (Caso Base):**")
+        d = scenarios["base"]["dcf"]
+        ccy = inputs["currency"]
+        bridge = pd.DataFrame({
+            "Concepto": ["Dinero futuro (anos 1-10) a valor de hoy", "Valor mas alla del ano 10", "= Valor del negocio", "+ Caja neta", "= Valor para accionistas"],
+            f"{ccy} M": [round(d["sum_pv_fcf"]), round(d["pv_tv_blended"]), round(d["enterprise_value"]), round(inputs["market_data"]["net_cash_eur_m"]), round(d["equity_value"])],
+        })
+        st.dataframe(bridge, use_container_width=True, hide_index=True)
+
+    render_glossary()
+
+    with st.expander("Fiabilidad de estos datos"):
+        st.markdown(explanations.reliability_note(inputs))
+
+    st.markdown("---")
+    st.markdown(explanations.DISCLAIMER_SIMPLE)
+    st.caption("Construido con skills de Anthropic financial-services (Apache 2.0).")
+
+
+def run_expert_mode():
     ticker, peers, fetch = render_ticker_input()
 
     if fetch:
@@ -482,38 +608,17 @@ def main():
                 return
 
     if st.session_state.inputs is None:
-        st.info("Selecciona una empresa objetivo y comparables en la barra lateral, despues click **Cargar datos**.")
+        st.info("Selecciona empresa objetivo y comparables en la barra lateral, despues **Cargar datos**.")
         st.markdown("---")
-        st.markdown(
-            """
-            ### Como funciona
-
-            1. Selecciona una empresa cotizada (372 disponibles US/EU/Asia/LatAm)
-            2. Elige 3 a 6 comparables del mismo sector
-            3. Ajusta WACC y supuestos de escenarios (Pesimista / Base / Optimista)
-            4. Obtienes proyeccion 10 anos, valor implicito, sensibilidad, comparables
-            5. Descarga modelo Excel + memo + inputs
-
-            ### Metodologia
-
-            DCF con 10 anos explicitos. WACC via CAPM. Valor terminal mezclado (perpetuidad + multiplo salida). Cross-check contra peer multiples.
-
-            ### Aviso legal
-
-            **NO ES ASESORAMIENTO FINANCIERO.** Herramienta educativa y producto analista. Verificar contra reporte anual oficial. Rendimientos pasados no predicen futuros.
-
-            ### Construido con
-
-            Skills open-source de [Anthropic financial-services](https://github.com/anthropics/financial-services) (Apache 2.0). DCF, comparables y auditoria.
-            """
-        )
+        st.markdown(explanations.HOW_IT_WORKS)
+        render_glossary()
+        st.markdown(explanations.DISCLAIMER_SIMPLE)
         return
 
     inputs = st.session_state.inputs
     peers_data = st.session_state.peers_data
 
     inputs = render_wacc_controls(inputs)
-
     with st.sidebar:
         st.header("Escenarios")
     for scen in ["bear", "base", "bull"]:
@@ -532,12 +637,14 @@ def main():
     st.header(f"{company} ({ticker})")
 
     render_warnings(inputs)
+    render_simple_verdict(inputs, scenarios)
+    st.markdown("---")
     render_market_data_summary(inputs)
 
     st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
 
-    tabs = st.tabs(["Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas"])
+    tabs = st.tabs(["Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Diccionario"])
 
     with tabs[0]:
         ccy = inputs["currency"]
@@ -595,11 +702,44 @@ def main():
         st.markdown("**Descargar deliverables**")
         render_downloads(inputs, scenarios, peers_data)
 
+    with tabs[6]:
+        for term, meaning in explanations.GLOSSARY.items():
+            st.markdown(f"**{term}** — {meaning}")
+        st.markdown("---")
+        st.markdown(explanations.reliability_note(inputs))
+
     st.markdown("---")
     st.caption(
         "NO ES ASESORAMIENTO FINANCIERO. Herramienta educativa. Verificar contra reporte anual oficial. "
         "Construido con skills de Anthropic financial-services (Apache 2.0)."
     )
+
+
+def main():
+    init_state()
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    render_header()
+
+    col1, col2 = st.columns([2, 3])
+    with col1:
+        modo = st.radio(
+            "Modo",
+            options=["Simple", "Experto"],
+            horizontal=True,
+            label_visibility="collapsed",
+            help="Simple: elige empresa y listo. Experto: ajusta WACC, escenarios, comparables.",
+        )
+    if modo != st.session_state.get("modo_prev"):
+        st.session_state.inputs = None
+        st.session_state.scenarios = None
+        st.session_state.modo_prev = modo
+
+    st.markdown("---")
+
+    if modo == "Simple":
+        run_simple_mode()
+    else:
+        run_expert_mode()
 
 
 if __name__ == "__main__":
