@@ -143,6 +143,24 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
             )
         lines.append("")
 
+    try:
+        import insights as _insights_mod
+        _ins = _insights_mod.generate_insights(inputs, scenarios, peers_data)
+    except Exception:
+        _ins = []
+    if _ins:
+        lines.extend(["## Insights del analisis", "", _insights_mod.insights_summary_line(_ins), ""])
+        cats = {}
+        for it in _ins:
+            cats.setdefault(it["categoria"], []).append(it)
+        sent_tag = {"positivo": "[+]", "neutro": "[~]", "alerta": "[!]"}
+        for cat, group in cats.items():
+            lines.append(f"### {cat}")
+            lines.append("")
+            for it in group:
+                lines.append(f"- {sent_tag.get(it['sentimiento'], '[-]')} **{it['titulo']}** — {it['detalle']}")
+            lines.append("")
+
     meta = scenarios.get("_meta", {})
     if meta:
         lines.extend([

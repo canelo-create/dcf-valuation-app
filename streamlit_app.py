@@ -19,6 +19,7 @@ import build_dcf_xlsx
 import compute_dcf
 import data_fetcher
 import explanations
+import insights as insights_mod
 import memo_generator
 
 st.set_page_config(
@@ -161,6 +162,34 @@ def render_header():
         """,
         unsafe_allow_html=True,
     )
+
+
+SENT_STYLE = {
+    "positivo": ("#1DB954", "OK"),
+    "neutro": ("#E8C547", "~"),
+    "alerta": ("#E84B4B", "!"),
+}
+
+
+def render_insights(inputs, scenarios, peers_data):
+    items = insights_mod.generate_insights(inputs, scenarios, peers_data)
+    st.markdown(f"### Insights del analisis")
+    st.caption(insights_mod.insights_summary_line(items))
+    cats = {}
+    for it in items:
+        cats.setdefault(it["categoria"], []).append(it)
+    for cat, group in cats.items():
+        st.markdown(f"**{cat}**")
+        for it in group:
+            color, tag = SENT_STYLE.get(it["sentimiento"], ("#B3B3B3", "-"))
+            st.markdown(
+                f"""<div style="background-color:#181818;border-left:4px solid {color};
+                border-radius:6px;padding:0.8rem 1rem;margin-bottom:0.5rem;">
+                <span style="color:{color};font-weight:700;">[{tag}] {it['titulo']}</span><br>
+                <span style="color:#B3B3B3;font-size:0.92rem;">{it['detalle']}</span>
+                </div>""",
+                unsafe_allow_html=True,
+            )
 
 
 def render_glossary():
@@ -569,6 +598,9 @@ def run_simple_mode():
     st.header(f"{inputs['company']} ({inputs['ticker']})")
     render_warnings(inputs)
     render_simple_verdict(inputs, scenarios)
+    st.markdown("---")
+    render_insights(inputs, scenarios, None)
+    st.markdown("---")
 
     with st.expander("Como llegamos a esta estimacion"):
         st.markdown(explanations.HOW_IT_WORKS)
@@ -644,9 +676,12 @@ def run_expert_mode():
     st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
 
-    tabs = st.tabs(["Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Diccionario"])
+    tabs = st.tabs(["Insights", "Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Diccionario"])
 
     with tabs[0]:
+        render_insights(inputs, scenarios, peers_data)
+
+    with tabs[1]:
         ccy = inputs["currency"]
         st.markdown(f"**Precio implicito caso base: {ccy} {scenarios['base']['dcf']['implied_share_price']:.2f}**")
         upside = (scenarios["base"]["dcf"]["implied_share_price"] / inputs["market_data"]["current_price_eur"] - 1) * 100
@@ -678,31 +713,31 @@ def run_expert_mode():
         else:
             st.warning(f"Check: Terminal {tv_pct:.1f}% del EV (FUERA del rango tipico 50-70%)")
 
-    with tabs[1]:
+    with tabs[2]:
         render_projection_chart(inputs, scenarios)
         st.markdown("**Tabla detallada de proyeccion**")
         render_projection_table(scenarios)
 
-    with tabs[2]:
+    with tabs[3]:
         render_sensitivity_heatmap(inputs, scenarios)
         st.caption(
             "Precio implicito a cada combinacion de WACC y crecimiento terminal. "
             "Mantiene FCFs explicitos al WACC base; solo varia el terminal."
         )
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("**Empresas comparables**")
         render_comps_table(peers_data)
 
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("**Financieros historicos (ultimos 5 anos disponibles)**")
         render_historicals_table(inputs)
 
-    with tabs[5]:
+    with tabs[6]:
         st.markdown("**Descargar deliverables**")
         render_downloads(inputs, scenarios, peers_data)
 
-    with tabs[6]:
+    with tabs[7]:
         for term, meaning in explanations.GLOSSARY.items():
             st.markdown(f"**{term}** — {meaning}")
         st.markdown("---")
