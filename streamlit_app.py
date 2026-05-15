@@ -178,7 +178,7 @@ def render_simple_verdict(inputs, scenarios):
     upside = (base_price / current - 1) * 100 if current else 0
     tv_pct = scenarios["base"]["dcf"]["tv_pct_of_ev"]
 
-    badge, color, parrafo = explanations.verdict(upside, tv_pct, ccy, base_price, current)
+    badge, color, parrafo = explanations.verdict(upside, tv_pct, ccy, base_price, current, scenarios.get("_meta"))
 
     st.markdown(
         f"""

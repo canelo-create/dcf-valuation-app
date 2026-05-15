@@ -143,6 +143,25 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
             )
         lines.append("")
 
+    meta = scenarios.get("_meta", {})
+    if meta:
+        lines.extend([
+            "## Reverse-DCF y calidad del negocio",
+            "",
+            "| Indicador | Valor | Lectura |",
+            "|---|---:|---|",
+        ])
+        g_impl = meta.get("implied_growth_pct")
+        if g_impl is not None:
+            lectura_g = "exigente" if g_impl > 6 else ("pesimista" if g_impl < 0 else "creible")
+            lines.append(f"| Crecimiento perpetuo implicito en el precio | {g_impl:.1f}% | {lectura_g} |")
+        roic = meta.get("roic_pct")
+        if roic is not None:
+            lines.append(f"| ROIC aproximado | {roic:.1f}% | vs WACC {meta.get('wacc_pct', 0):.1f}% -> {meta.get('roic_vs_wacc', 'n/d')} |")
+        lines.append("")
+        lines.append("Metodo reverse-DCF (IE Corporate Finance): g = WACC - FCF_next / TV. ROIC > WACC implica creacion de valor.")
+        lines.append("")
+
     lines.extend([
         "## Sanity checks",
         "",
@@ -163,6 +182,7 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
         "NO ES ASESORAMIENTO FINANCIERO. Case study educativo y producto analista. Verificar contra reporte anual oficial. Rendimientos pasados no predicen futuros.",
         "",
         "Construido con skills open-source de Anthropic financial-services (Apache 2.0). Repositorio: https://github.com/anthropics/financial-services.",
+        "Convenciones metodologicas alineadas con IE Business School Corporate Finance: TV = FCF_next/(WACC-g) con g < WACC estricto, beta sin termino (1-t), WACC a valores de mercado, EV->Equity = EV - deuda + caja, reverse-DCF para crecimiento implicito, ROIC vs WACC para creacion de valor.",
         "",
         f"Generado: {as_of}",
     ])

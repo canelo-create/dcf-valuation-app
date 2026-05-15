@@ -62,17 +62,26 @@ def compute_dcf(scenario, wacc, terminal_g, exit_multiple, net_cash, shares):
     n = len(scenario["fcf"])
     discount_period_terminal = n - 0.5
 
-    tv_perpetuity = final_fcf * (1 + terminal_g / 100) / (wacc / 100 - terminal_g / 100)
-    pv_tv_perpetuity = tv_perpetuity / ((1 + wacc / 100) ** discount_period_terminal)
+    # IE Corporate Finance rule: stable growth g must be strictly < WACC.
+    # Cap g at WACC - 0.5pp to avoid division by zero / negative (infinite) TV.
+    wacc_f = wacc / 100
+    tg_f = terminal_g / 100
+    g_capped = False
+    if tg_f >= wacc_f:
+        tg_f = wacc_f - 0.005
+        g_capped = True
+
+    tv_perpetuity = final_fcf * (1 + tg_f) / (wacc_f - tg_f)
+    pv_tv_perpetuity = tv_perpetuity / ((1 + wacc_f) ** discount_period_terminal)
 
     tv_exit_multiple = final_ebitda * exit_multiple
-    pv_tv_exit = tv_exit_multiple / ((1 + wacc / 100) ** discount_period_terminal)
+    pv_tv_exit = tv_exit_multiple / ((1 + wacc_f) ** discount_period_terminal)
 
     pv_tv_blended = (pv_tv_perpetuity + pv_tv_exit) / 2
 
     ev = sum_pv_fcf + pv_tv_blended
     equity_value = ev + net_cash
-    implied_share_price = equity_value / shares
+    implied_share_price = equity_value / shares if shares else 0
 
     return {
         "sum_pv_fcf": sum_pv_fcf,
@@ -84,8 +93,56 @@ def compute_dcf(scenario, wacc, terminal_g, exit_multiple, net_cash, shares):
         "enterprise_value": ev,
         "equity_value": equity_value,
         "implied_share_price": implied_share_price,
-        "tv_pct_of_ev": pv_tv_blended / ev * 100,
+        "tv_pct_of_ev": pv_tv_blended / ev * 100 if ev else 0,
+        "terminal_g_capped": g_capped,
     }
+
+
+def implied_growth(current_price, shares, net_cash, sum_pv_fcf, final_fcf, wacc, discount_period):
+    """Reverse DCF: what perpetual growth g does the current market price imply?
+
+    From IE CF: TV = FCF_next/(WACC-g) -> g = WACC - FCF_next/TV.
+    Solve for the TV the market implies given today's price, then back out g.
+    """
+    if not current_price or not shares:
+        return None
+    market_equity = current_price * shares
+    market_ev = market_equity - net_cash
+    implied_pv_tv = market_ev - sum_pv_fcf
+    if implied_pv_tv <= 0:
+        return None
+    wacc_f = wacc / 100
+    implied_tv = implied_pv_tv * ((1 + wacc_f) ** discount_period)
+    if implied_tv <= 0:
+        return None
+    g = wacc_f - final_fcf / implied_tv
+    return g * 100
+
+
+def compute_roic(inputs):
+    """ROIC = EBIT*(1-t) / (Book Equity + Book Debt - Cash). IE CF uses book values.
+
+    yfinance does not reliably give book equity here; approximate with latest FY
+    EBIT, tax rate, and balance proxies. Returns None if data insufficient.
+    """
+    fy_keys = sorted(inputs.get("historical", {}).keys())
+    if not fy_keys:
+        return None
+    latest = inputs["historical"][fy_keys[-1]]
+    ebit = latest.get("ebit", 0)
+    if not ebit:
+        return None
+    tax_rate = inputs["wacc"].get("tax_rate_pct", 22) / 100
+    nopat = ebit * (1 - tax_rate)
+    md = inputs["market_data"]
+    # IE CF: ROIC denominator uses BOOK values (book equity + book debt - cash), NOT market.
+    book_equity = md.get("book_equity_eur_m")
+    if not book_equity:
+        return None  # No book equity available -> do not show a misleading market-based ROIC
+    invested = book_equity + md.get("total_financial_debt_eur_m", 0) - md.get("cash_and_st_investments_eur_m", 0)
+    if invested <= 0:
+        return None
+    return nopat / invested * 100
 
 
 def run_all(inputs):
@@ -114,6 +171,22 @@ def run_all(inputs):
         scen = project_scenario(base_rev, assumptions, tax, wacc, nwc_pct)
         dcf = compute_dcf(scen, wacc, tg, em, net_cash, shares)
         scenarios[case] = {"projection": scen, "dcf": dcf, "tg": tg, "em": em}
+
+    # Reverse DCF (IE CF: implied growth) + ROIC value-creation, computed off base case
+    base_scen = scenarios["base"]
+    n = len(base_scen["projection"]["fcf"])
+    g_impl = implied_growth(
+        current_price, shares, net_cash,
+        base_scen["dcf"]["sum_pv_fcf"], base_scen["projection"]["fcf"][-1],
+        wacc, n - 0.5,
+    )
+    roic = compute_roic(inputs)
+    scenarios["_meta"] = {
+        "implied_growth_pct": g_impl,
+        "roic_pct": roic,
+        "wacc_pct": wacc,
+        "roic_vs_wacc": (None if roic is None else ("crea valor" if roic > wacc else "destruye valor")),
+    }
 
     print(f"{'='*80}\n{company} ({ticker}) DCF VALUATION SUMMARY\n{'='*80}")
     print(f"Current share price: {ccy} {current_price:.2f}")

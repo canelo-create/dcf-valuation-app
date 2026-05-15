@@ -27,6 +27,7 @@
     "total_financial_debt_eur_m": 28,
     "net_cash_eur_m": 10932,
     "enterprise_value_eur_m": 140446,
+    "book_equity_eur_m": 20395,
     "beta_5y": 0.92
   },
   "wacc": {

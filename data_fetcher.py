@@ -72,6 +72,7 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
     debt = _coerce_int(_safe(info, "totalDebt"))
     ev = _coerce_int(_safe(info, "enterpriseValue"))
     beta = _safe(info, "beta", 1.0)
+    book_equity = _coerce_int(_safe(info, "bookValue", 0) * shares) if _safe(info, "bookValue") else 0
 
     net_cash = cash - debt
     if not ev:
@@ -191,6 +192,7 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
             "total_financial_debt_eur_m": debt // 1_000_000 if debt else 0,
             "net_cash_eur_m": net_cash // 1_000_000,
             "enterprise_value_eur_m": ev // 1_000_000 if ev else 0,
+            "book_equity_eur_m": book_equity // 1_000_000 if book_equity else 0,
             "beta_5y": float(beta),
         },
         "wacc": _default_wacc(beta, currency),

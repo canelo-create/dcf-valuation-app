@@ -18,6 +18,8 @@ GLOSSARY = {
     "Crecimiento Terminal": "A que ritmo asumimos que crece la empresa para siempre despues del ano 10. Suele ser similar al crecimiento de la economia (2-3%).",
     "Multiplo de Salida": "A que multiplo EV/EBITDA asumimos que se podria vender la empresa al final de la proyeccion. Lo informan las empresas comparables.",
     "Comparables (Comps)": "Empresas parecidas que cotizan en bolsa. Comparar sus multiplos dice si tu empresa esta cara o barata respecto a sus pares.",
+    "ROIC": "Retorno sobre el capital invertido. Cuanto gana la empresa por cada euro invertido. Si ROIC > WACC, la empresa CREA valor. Si ROIC < WACC, lo destruye (gana menos que el coste de su capital).",
+    "Crecimiento implicito": "Reverse-DCF: que ritmo de crecimiento perpetuo tendria que cumplir la empresa para justificar el precio que el mercado paga HOY. Si es muy alto y poco creible, la accion esta cara.",
     "Caso Base": "El escenario mas probable, con supuestos realistas.",
     "Caso Pesimista": "Que pasaria si las cosas van mal: menos crecimiento, margenes mas bajos.",
     "Caso Optimista": "Que pasaria si las cosas van muy bien: crecimiento sostenido, margenes altos.",
@@ -44,8 +46,8 @@ Rendimientos pasados no garantizan futuros.
 """
 
 
-def verdict(upside_pct: float, tv_pct: float, currency: str, base_price: float, current_price: float):
-    """Devuelve (badge, color_hex, parrafo_explicativo)."""
+def verdict(upside_pct: float, tv_pct: float, currency: str, base_price: float, current_price: float, meta: dict = None):
+    """Devuelve (badge, color_hex, parrafo_explicativo). meta opcional con implied_growth/ROIC."""
     if upside_pct > 25:
         badge = "POSIBLEMENTE INFRAVALORADA"
         color = "#1DB954"
@@ -82,6 +84,27 @@ def verdict(upside_pct: float, tv_pct: float, currency: str, base_price: float, 
         )
     elif 50 <= tv_pct <= 70:
         parrafo += f"\n\nLa estimacion es robusta: el valor terminal ({tv_pct:.0f}% del total) esta en rango sano."
+
+    if meta:
+        g_impl = meta.get("implied_growth_pct")
+        if g_impl is not None:
+            if g_impl > 6:
+                cred = "muy exigente: el mercado descuenta un crecimiento dificil de sostener para siempre"
+            elif g_impl < 0:
+                cred = "pesimista: el mercado practicamente no espera crecimiento"
+            else:
+                cred = "razonable y creible a largo plazo"
+            parrafo += (
+                f"\n\n**Lo que el mercado descuenta:** para justificar el precio actual, la empresa tendria que crecer "
+                f"un **{g_impl:.1f}% perpetuo**. Eso es {cred}."
+            )
+        roic = meta.get("roic_pct")
+        rvw = meta.get("roic_vs_wacc")
+        if roic is not None and rvw:
+            parrafo += (
+                f"\n\n**Calidad del negocio:** ROIC aproximado {roic:.1f}% vs WACC {meta.get('wacc_pct', 0):.1f}% -> "
+                f"la empresa **{rvw}** (gana {'mas' if 'crea' in rvw else 'menos'} que el coste de su capital)."
+            )
 
     return badge, color, parrafo
 
