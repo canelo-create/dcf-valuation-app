@@ -166,6 +166,8 @@ def init_state():
         st.session_state.peers_data = None
     if "scenarios" not in st.session_state:
         st.session_state.scenarios = None
+    if "view" not in st.session_state:
+        st.session_state.view = "analisis"
 
 
 def render_header():
@@ -635,6 +637,13 @@ def render_ticker_input():
         src = "manual (avanzado)" if manual_active else "desplegable"
         st.caption(f"Analizando: **{ticker}** (fuente: {src})")
         fetch = st.button("Cargar datos", type="primary", use_container_width=True)
+        st.markdown(
+            "<div style='border-top:1px solid #282828;margin:0.6rem 0;'></div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("Monitor de Noticias (pantalla completa)", use_container_width=True, key="nav_news"):
+            st.session_state.view = "news"
+            st.rerun()
         return ticker, peers, fetch
 
 
@@ -1245,9 +1254,65 @@ def run_expert_mode():
     )
 
 
+NEWS_PANELS = {
+    "Mercados globales": '"stock market" OR equities OR "S&P 500" OR Nasdaq OR "Dow Jones"',
+    "Macro y bancos centrales": '"Federal Reserve" OR ECB OR "interest rates" OR inflation OR recession OR GDP',
+    "Geopolitica": 'geopolitics OR sanctions OR "trade war" OR tariffs OR conflict OR election',
+    "Energia y commodities": '"crude oil" OR OPEC OR "natural gas" OR gold OR copper OR commodities',
+    "Divisas y renta fija": '"currency" OR "dollar index" OR "bond yields" OR Treasury OR "exchange rate"',
+    "Tecnologia y AI": '"artificial intelligence" OR semiconductors OR "tech stocks" OR Nvidia OR cloud',
+    "Cripto": 'bitcoin OR ethereum OR crypto OR stablecoin OR "digital assets"',
+    "Resultados y empresas": '"earnings report" OR "quarterly results" OR guidance OR "profit warning" OR M&A',
+}
+
+
+def render_news_dashboard():
+    top = st.columns([4, 1])
+    with top[0]:
+        st.markdown(
+            "<div class='hero-title' style='font-size:2.2rem;'>Terminal de Noticias</div>"
+            "<div class='hero-sub'>Radar global multi-panel: mercados, macro, geopolitica, "
+            "energia, divisas, tecnologia, cripto y resultados. Fuente GDELT (miles de medios, "
+            "tiempo casi real). No sustituye un terminal de pago: sin precios live ni datos propietarios.</div>",
+            unsafe_allow_html=True,
+        )
+    with top[1]:
+        if st.button("Volver al analisis", use_container_width=True, key="nav_back"):
+            st.session_state.view = "analisis"
+            st.rerun()
+        if st.button("Actualizar todo", use_container_width=True, key="news_dash_refresh"):
+            _cached_news.clear()
+            st.rerun()
+
+    panels = list(NEWS_PANELS.items())
+    for row_start in range(0, len(panels), 2):
+        cols = st.columns(2)
+        for j, (name, query) in enumerate(panels[row_start:row_start + 2]):
+            with cols[j]:
+                st.markdown(
+                    f"<div style='background:{SPOTIFY_GREEN};color:#000;font-weight:800;"
+                    f"padding:0.4rem 0.8rem;border-radius:6px 6px 0 0;'>{name}</div>",
+                    unsafe_allow_html=True,
+                )
+                box = st.container(height=340)
+                with box:
+                    try:
+                        items = _cached_news(query, 12)
+                        _render_news_list(items)
+                    except news_mod.NewsError as e:
+                        st.warning(str(e))
+    st.caption("Titulares cacheados 10 min. GDELT indexa medios globales; puede incluir ruido. "
+               "Herramienta educativa, no asesoramiento financiero.")
+
+
 def main():
     init_state()
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+    if st.session_state.get("view") == "news":
+        render_news_dashboard()
+        return
+
     render_header()
     st.caption(f":warning: {explanations.DISCLAIMER_BANNER}")
 
