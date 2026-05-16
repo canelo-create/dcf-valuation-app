@@ -394,14 +394,32 @@ def _interp_decay(start, end, n):
     return [round(start + i * step, 2) for i in range(n)]
 
 
+def _abbr_m(v_millions, ccy):
+    """Abbreviate a value already expressed in millions: 1_250_000 M -> 1.25T."""
+    v = v_millions * 1_000_000
+    a = abs(v)
+    if a >= 1e12:
+        s = f"{v/1e12:.2f}T"
+    elif a >= 1e9:
+        s = f"{v/1e9:.1f}B"
+    elif a >= 1e6:
+        s = f"{v/1e6:.0f}M"
+    else:
+        s = f"{v:,.0f}"
+    return f"{ccy} {s}"
+
+
 def render_market_data_summary(inputs):
     md = inputs["market_data"]
     ccy = inputs["currency"]
+    nc = md["net_cash_eur_m"]
+    nc_label = "Caja neta" if nc >= 0 else "Deuda neta"
+    nc_val = _abbr_m(abs(nc), ccy)
     cols = st.columns(4)
-    cols[0].metric("Precio", f"{ccy} {md['current_price_eur']:.2f}")
-    cols[1].metric("Capitalizacion", f"{ccy} {md['market_cap_eur_m']:,.0f}M")
-    cols[2].metric("Caja neta / (Deuda)", f"{ccy} {md['net_cash_eur_m']:,.0f}M")
-    cols[3].metric("Valor empresa (EV)", f"{ccy} {md['enterprise_value_eur_m']:,.0f}M")
+    cols[0].metric("Precio", f"{ccy} {md['current_price_eur']:,.2f}")
+    cols[1].metric("Capitalizacion", _abbr_m(md["market_cap_eur_m"], ccy))
+    cols[2].metric(nc_label, nc_val)
+    cols[3].metric("Valor empresa (EV)", _abbr_m(md["enterprise_value_eur_m"], ccy))
 
 
 def render_scenario_cards(inputs, scenarios):
@@ -474,18 +492,28 @@ def render_sensitivity_heatmap(inputs, scenarios):
             row.append(round(implied, 2))
         matrix.append(row)
 
+    current = md.get("current_price_eur") or 0
+    # Diverging colormap centered on TODAY's market price: rojo = sobrevalorado
+    # (implied < precio), blanco ~ justo, verde = infravalorado (implied > precio).
     fig = go.Figure(data=go.Heatmap(
         z=matrix,
         x=[f"{w:.1f}%" for w in wacc_range],
         y=[f"{tg:.1f}%" for tg in tg_range],
-        colorscale=[[0, "#3F3F3F"], [0.5, "#1DB954"], [1, "#1ED760"]],
-        text=[[f"{v:.1f}" if v is not None else "" for v in row] for row in matrix],
+        colorscale=[[0, "#E84B4B"], [0.5, "#E8E0C8"], [1, "#1DB954"]],
+        zmid=current if current else None,
+        text=[[f"{v:,.0f}" if v is not None else "" for v in row] for row in matrix],
         texttemplate="%{text}",
         hovertemplate="WACC: %{x}<br>g Terminal: %{y}<br>Implicito: %{z:.2f}<extra></extra>",
+        colorbar=dict(title="Precio<br>implicito"),
     ))
     _plotly_dark_layout(fig, "Sensibilidad: Precio implicito vs WACC y Crecimiento Terminal")
     fig.update_layout(xaxis_title="WACC", yaxis_title="Crecimiento Terminal")
     st.plotly_chart(fig, use_container_width=True)
+    if current:
+        st.caption(
+            f"Rojo = implicito por debajo del precio de mercado ({inputs['currency']} {current:,.2f}, sobrevalorado). "
+            f"Verde = por encima (infravalorado). Centro claro = precio justo."
+        )
 
 
 def render_historicals_table(inputs):
@@ -760,7 +788,7 @@ def run_expert_mode():
                 "Suma VP(FCF) Y1-Y10",
                 "VP Valor Terminal",
                 "(=) Valor Empresa (EV)",
-                "(+) Caja neta",
+                "(+) Caja - (-) Deuda neta",
                 "(=) Valor Equity",
             ],
             "Valor": [
