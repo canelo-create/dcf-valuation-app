@@ -206,17 +206,35 @@ def render_wallet(inputs):
 
     # ---------- Alpaca ----------
     with sub[0]:
-        with st.expander("Como empezar gratis (2 minutos, sin meter dinero)"):
+        with st.expander("Guia paso a paso: crear y conectar tu cuenta paper de Alpaca (gratis, ~3 min)", expanded=True):
             st.markdown(
-                "1. Entra en **alpaca.markets** y crea una cuenta gratis.\n"
-                "2. En el dashboard cambia a **Paper Trading** (arriba). Es una cartera "
-                "ficticia de 100.000 USD, no necesitas fondear nada.\n"
-                "3. Ve a **Home -> API Keys -> Generate** (asegurate de estar en Paper).\n"
-                "4. Copia *API Key ID* y *Secret* y pegalos aqui abajo. Solo viven en tu "
-                "sesion del navegador, no se guardan.\n"
-                "5. Deja activado **Paper Trading** abajo y empieza a simular."
+                "**Paso 1 - Crear cuenta**\n"
+                "- Abre **https://alpaca.markets** y pulsa *Sign Up*.\n"
+                "- Registrate con email y contrasena. Verifica el email (revisa spam).\n"
+                "- No necesitas fondear ni completar el alta de broker para usar Paper.\n\n"
+                "**Paso 2 - Entrar al modo Paper**\n"
+                "- Inicia sesion. Veras el panel de *Trading*.\n"
+                "- Arriba a la izquierda hay un selector de cuenta: cambia de *Live* a "
+                "**Paper**. Es una cartera ficticia con 100.000 USD virtuales.\n\n"
+                "**Paso 3 - Generar las claves API (en Paper)**\n"
+                "- Confirma que el selector dice **Paper** (critico: las claves Live no "
+                "funcionan aqui y viceversa).\n"
+                "- En el panel derecho busca **API Keys** y pulsa **Generate New Key** "
+                "(o *Regenerate*).\n"
+                "- Te muestra **API Key ID** y **Secret Key**. El Secret se ve **una sola "
+                "vez**: copialo ya. Si lo pierdes, regenera (invalida el anterior).\n\n"
+                "**Paso 4 - Conectar aqui**\n"
+                "- Deja activado **Paper Trading** abajo.\n"
+                "- Pega *API Key ID* y *Secret* en los campos.\n"
+                "- Pulsa **Conectar Alpaca**. Si ves tu cuenta y 100.000 USD, listo.\n"
+                "- Las claves solo viven en tu sesion del navegador. No se guardan ni se "
+                "suben a ningun sitio (puedes verificarlo: el repo no las contiene).\n\n"
+                "**Si falla la conexion**\n"
+                "- *Claves invalidas*: generaste claves Live, no Paper. Cambia a Paper y regenera.\n"
+                "- *Sin permiso*: copiaste mal el Secret (espacios). Regenera y pega limpio.\n"
+                "- *Nada aparece*: email sin verificar. Confirma el correo de Alpaca y reintenta."
             )
-        st.caption("Modo Paper = dinero ficticio. Ideal para aprender y validar la metodologia sin riesgo.")
+        st.caption("Modo Paper = dinero ficticio. Aprende y valida la metodologia sin arriesgar capital.")
         secrets_key = None
         try:
             secrets_key = st.secrets.get("ALPACA_API_KEY")
