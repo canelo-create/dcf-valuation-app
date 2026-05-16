@@ -23,7 +23,7 @@ import insights as insights_mod
 import memo_generator
 
 st.set_page_config(
-    page_title="Valoracion DCF | Spotify Style",
+    page_title="Valoracion de Renta Variable | DCF + Comparables",
     page_icon=":chart_with_upwards_trend:",
     layout="wide",
 )
@@ -157,8 +157,8 @@ def init_state():
 def render_header():
     st.markdown(
         f"""
-        <div class="hero-title">Vale o no vale</div>
-        <div class="hero-sub">Descubre si una accion esta cara o barata. Datos reales, explicado simple.</div>
+        <div class="hero-title">Valoracion de Renta Variable</div>
+        <div class="hero-sub">Analisis fundamental de empresas cotizadas: DCF, comparables y diagnostico de calidad. Datos reales, metodologia institucional.</div>
         """,
         unsafe_allow_html=True,
     )
