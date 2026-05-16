@@ -82,8 +82,15 @@ CUSTOM_CSS = f"""
     }}
     [data-testid="stMetricValue"] {{
         color: #FFFFFF !important;
-        font-size: 2rem !important;
+        font-size: clamp(0.95rem, 1.8vw, 1.5rem) !important;
         font-weight: 700;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        overflow: visible !important;
+    }}
+    [data-testid="stMetricValue"] > div {{
+        overflow: visible !important;
+        text-overflow: clip !important;
     }}
     [data-testid="stMetricDelta"] {{
         font-weight: 600;
@@ -434,18 +441,18 @@ def render_simple_verdict(inputs, scenarios):
         f"""
         <div style="background-color:#181818;border-radius:12px;padding:2rem;border:2px solid {color};margin-bottom:1.5rem;">
             <div style="color:{color};font-size:1.5rem;font-weight:900;letter-spacing:0.02em;">{badge}</div>
-            <div style="display:flex;gap:3rem;margin:1.2rem 0;flex-wrap:wrap;">
-                <div>
+            <div style="display:flex;gap:2rem;margin:1.2rem 0;flex-wrap:wrap;">
+                <div style="min-width:120px;">
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Precio hoy</div>
-                    <div style="font-size:1.7rem;font-weight:700;color:#FFF;">{ccy} {current:,.2f}</div>
+                    <div style="font-size:clamp(1.1rem,2vw,1.6rem);font-weight:700;color:#FFF;white-space:nowrap;">{ccy} {current:,.2f}</div>
                 </div>
-                <div>
+                <div style="min-width:120px;">
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Valor estimado</div>
-                    <div style="font-size:1.7rem;font-weight:700;color:{color};">{ccy} {base_price:,.2f}</div>
+                    <div style="font-size:clamp(1.1rem,2vw,1.6rem);font-weight:700;color:{color};white-space:nowrap;">{ccy} {base_price:,.2f}</div>
                 </div>
-                <div>
+                <div style="min-width:90px;">
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Potencial</div>
-                    <div style="font-size:1.7rem;font-weight:700;color:{color};">{upside:+.0f}%</div>
+                    <div style="font-size:clamp(1.1rem,2vw,1.6rem);font-weight:700;color:{color};white-space:nowrap;">{upside:+.0f}%</div>
                 </div>
             </div>
         </div>
@@ -453,6 +460,20 @@ def render_simple_verdict(inputs, scenarios):
         unsafe_allow_html=True,
     )
     st.markdown(parrafo)
+
+    try:
+        g1 = scenarios["base"]["projection"]["revenue"]
+        hkeys = sorted(inputs["historical"].keys())
+        base_rev = inputs["historical"][hkeys[-1]]["revenue"] if hkeys else 0
+        y1_g = (g1[0] / base_rev - 1) * 100 if base_rev else 0
+        st.info(
+            f"Supuesto clave: este modelo asume que la empresa crece **{y1_g:+.0f}%** el "
+            f"primer ano, anclado en su crecimiento historico reciente. Es deliberadamente "
+            f"prudente. Si crees que va a **acelerar** (lanzamientos, nuevos mercados), "
+            f"sube el slider de crecimiento en **Modo Experto** y recalcula: el valor cambia mucho."
+        )
+    except Exception:
+        pass
 
     st.markdown("**Rango segun escenario:**")
     c1, c2, c3 = st.columns(3)
@@ -520,11 +541,13 @@ def render_ticker_input():
         st.caption(f"{len(labels)} empresas cotizadas en US, EU, Asia, LatAm. Escribe para buscar.")
 
         default_target = next((l for l in labels if "(AAPL)" in l), labels[0] if labels else "")
+        # key= -> Streamlit persiste la seleccion entre reruns (fix scroll-revert).
         target_label = st.selectbox(
             "Empresa objetivo",
             options=labels,
             index=labels.index(default_target) if default_target in labels else 0,
             help="Busca por nombre o ticker.",
+            key="sel_target",
         )
         ticker = lookup.get(target_label, "AAPL")
 
@@ -535,17 +558,23 @@ def render_ticker_input():
             options=labels,
             default=default_peers_labels,
             help="Elige de 3 a 6 comparables. Busca por nombre o ticker.",
+            key="sel_peers",
         )
         peers = [lookup[l] for l in peer_labels if l in lookup]
 
+        manual_active = False
         with st.expander("Tickers personalizados (avanzado)"):
-            custom_target = st.text_input("Sobrescribir ticker objetivo", value="", help="Para empresas no listadas. Ej: ITX.MC")
-            custom_peers = st.text_input("Sobrescribir tickers comparables (coma)", value="", help="Ej: ITX.MC, HM-B.ST")
+            st.caption("Si rellenas esto, IGNORA el desplegable de arriba y usa lo que escribas.")
+            custom_target = st.text_input("Sobrescribir ticker objetivo", value="", help="Para empresas no listadas. Ej: ITX.MC", key="cust_t")
+            custom_peers = st.text_input("Sobrescribir tickers comparables (coma)", value="", help="Ej: ITX.MC, HM-B.ST", key="cust_p")
             if custom_target.strip():
                 ticker = custom_target.strip()
+                manual_active = True
             if custom_peers.strip():
                 peers = [t.strip() for t in custom_peers.split(",") if t.strip()]
 
+        src = "manual (avanzado)" if manual_active else "desplegable"
+        st.caption(f"Analizando: **{ticker}** (fuente: {src})")
         fetch = st.button("Cargar datos", type="primary", use_container_width=True)
         return ticker, peers, fetch
 

@@ -31,18 +31,24 @@ def _fmp_key() -> Optional[str]:
         return None
 
 
-def _fmp_get(path: str, symbol: str, key: str, limit: Optional[int] = None):
+def _fmp_get(path: str, symbol: str, key: str, limit: Optional[int] = None, retries: int = 2):
     params = {"symbol": symbol, "apikey": key}
     if limit:
         params["limit"] = limit
-    r = requests.get(f"{FMP_BASE}/{path}", params=params, timeout=20)
-    if r.status_code == 429:
-        raise RateLimited(f"FMP rate-limit on {path} for {symbol}")
-    r.raise_for_status()
-    data = r.json()
-    if isinstance(data, dict) and data.get("Error Message"):
-        raise ValueError(f"FMP error: {data['Error Message'][:120]}")
-    return data
+    delay = 1.0
+    for attempt in range(retries + 1):
+        r = requests.get(f"{FMP_BASE}/{path}", params=params, timeout=20)
+        if r.status_code == 429:
+            if attempt < retries:
+                time.sleep(delay)
+                delay *= 2  # backoff: 1s, 2s
+                continue
+            raise RateLimited(f"FMP rate-limit on {path} for {symbol}")
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, dict) and data.get("Error Message"):
+            raise ValueError(f"FMP error: {data['Error Message'][:120]}")
+        return data
 
 
 def _num(v, default=0):
@@ -586,12 +592,14 @@ def _default_projection(scenario: str, hist_margin: float = None, hist_cagr: flo
         tg = 2.5
         em = 12.0
     elif scenario == "bear":
-        g1 = max(base_g1 * 0.45, 1.0)
-        growth = [round(max(g1 - 0.15 * i, 1.0), 1) for i in range(10)]
-        margin = [round(max(base_margin - 5, 8), 1)] * 10
+        # Bear realista, no apocaliptico: desaceleracion + leve compresion margen,
+        # no combinatoria de todos los peores inputs a la vez (auditoria 2).
+        g1 = max(base_g1 * 0.6, 1.5)
+        growth = [round(max(g1 - 0.1 * i, 1.5), 1) for i in range(10)]
+        margin = [round(max(base_margin - 3, 10), 1)] * 10
         capex = [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0]
-        tg = 1.5
-        em = 9.0
+        tg = 1.8
+        em = 10.0
     else:  # bull
         g1 = min(base_g1 * 1.3, 18.0)
         g_end = max(min(g1 * 0.4, 5.0), 3.0)
