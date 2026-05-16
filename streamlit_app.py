@@ -207,24 +207,39 @@ def render_simple_verdict(inputs, scenarios):
     upside = (base_price / current - 1) * 100 if current else 0
     tv_pct = scenarios["base"]["dcf"]["tv_pct_of_ev"]
 
-    badge, color, parrafo = explanations.verdict(upside, tv_pct, ccy, base_price, current, scenarios.get("_meta"))
+    meta = scenarios.get("_meta") or {}
+    badge, color, parrafo = explanations.verdict(upside, tv_pct, ccy, base_price, current, meta)
+
+    # Audit fix: si DCF no aplica (banco/aseguradora/REIT/perdidas), mostrar SOLO el
+    # aviso. Nada de precio objetivo ni escenarios: serian senales enganosas.
+    if meta.get("dcf_applicable") is False:
+        st.markdown(
+            f"""
+            <div style="background-color:#181818;border-radius:12px;padding:2rem;border:2px solid {color};margin-bottom:1rem;">
+                <div style="color:{color};font-size:1.5rem;font-weight:900;">{badge}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.warning(parrafo)
+        return False
 
     st.markdown(
         f"""
         <div style="background-color:#181818;border-radius:12px;padding:2rem;border:2px solid {color};margin-bottom:1.5rem;">
             <div style="color:{color};font-size:1.5rem;font-weight:900;letter-spacing:0.02em;">{badge}</div>
-            <div style="display:flex;gap:3rem;margin:1.2rem 0;">
+            <div style="display:flex;gap:3rem;margin:1.2rem 0;flex-wrap:wrap;">
                 <div>
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Precio hoy</div>
-                    <div style="font-size:2rem;font-weight:700;color:#FFF;">{ccy} {current:,.2f}</div>
+                    <div style="font-size:1.7rem;font-weight:700;color:#FFF;">{ccy} {current:,.2f}</div>
                 </div>
                 <div>
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Valor estimado</div>
-                    <div style="font-size:2rem;font-weight:700;color:{color};">{ccy} {base_price:,.2f}</div>
+                    <div style="font-size:1.7rem;font-weight:700;color:{color};">{ccy} {base_price:,.2f}</div>
                 </div>
                 <div>
                     <div style="color:#B3B3B3;font-size:0.8rem;text-transform:uppercase;">Potencial</div>
-                    <div style="font-size:2rem;font-weight:700;color:{color};">{upside:+.0f}%</div>
+                    <div style="font-size:1.7rem;font-weight:700;color:{color};">{upside:+.0f}%</div>
                 </div>
             </div>
         </div>
@@ -238,6 +253,7 @@ def render_simple_verdict(inputs, scenarios):
     c1.metric("Si va mal (Pesimista)", f"{ccy} {bear_price:,.2f}", f"{(bear_price/current-1)*100:+.0f}%" if current else "")
     c2.metric("Lo mas probable (Base)", f"{ccy} {base_price:,.2f}", f"{upside:+.0f}%")
     c3.metric("Si va muy bien (Optimista)", f"{ccy} {bull_price:,.2f}", f"{(bull_price/current-1)*100:+.0f}%" if current else "")
+    return True
 
 
 def render_simple_sidebar():
@@ -588,14 +604,20 @@ def run_simple_mode():
                 st.session_state.inputs = inputs
                 st.session_state.peers_data = None
                 st.session_state.scenarios = None
+            except data_fetcher.TickerNotFound:
+                st.error(
+                    f"**El ticker '{ticker}' no existe** en la fuente de datos. "
+                    "Revisa el simbolo o anade sufijo de bolsa (.MC Espana, .L Londres, .T Tokio, .KS Corea)."
+                )
+                return
             except data_fetcher.RateLimited:
                 st.error(
-                    "**Yahoo Finance esta limitando peticiones ahora mismo** (no es la app, es la fuente de datos gratuita). "
-                    "Espera 1-2 minutos y pulsa Analizar otra vez. Una vez cargada, la empresa queda en cache 1h y no se vuelve a pedir."
+                    "**La fuente de datos esta limitando peticiones ahora mismo.** "
+                    "Espera 1-2 minutos y pulsa Analizar otra vez. Una vez cargada, la empresa queda en cache 1h."
                 )
                 return
             except Exception as e:
-                st.error(f"No pude cargar {ticker}: {e}. Prueba otro ticker o anade sufijo de bolsa (.MC Espana, .L Londres, .T Tokio).")
+                st.error(f"No pude cargar {ticker}: tipo {type(e).__name__}. Prueba otro ticker o sufijo de bolsa (.MC, .L, .T, .KS).")
                 return
 
     if st.session_state.inputs is None:
@@ -616,21 +638,23 @@ def run_simple_mode():
 
     st.header(f"{inputs['company']} ({inputs['ticker']})")
     render_warnings(inputs)
-    render_simple_verdict(inputs, scenarios)
-    st.markdown("---")
-    render_insights(inputs, scenarios, None)
-    st.markdown("---")
+    applicable = render_simple_verdict(inputs, scenarios)
 
-    with st.expander("Como llegamos a esta estimacion"):
-        st.markdown(explanations.HOW_IT_WORKS)
-        st.markdown("**Resumen de la cuenta (Caso Base):**")
-        d = scenarios["base"]["dcf"]
-        ccy = inputs["currency"]
-        bridge = pd.DataFrame({
-            "Concepto": ["Dinero futuro (anos 1-10) a valor de hoy", "Valor mas alla del ano 10", "= Valor del negocio", "+ Caja neta", "= Valor para accionistas"],
-            f"{ccy} M": [round(d["sum_pv_fcf"]), round(d["pv_tv_blended"]), round(d["enterprise_value"]), round(inputs["market_data"]["net_cash_eur_m"]), round(d["equity_value"])],
-        })
-        st.dataframe(bridge, use_container_width=True, hide_index=True)
+    if applicable is not False:
+        st.markdown("---")
+        render_insights(inputs, scenarios, None)
+        st.markdown("---")
+
+        with st.expander("Como llegamos a esta estimacion"):
+            st.markdown(explanations.HOW_IT_WORKS)
+            st.markdown("**Resumen de la cuenta (Caso Base):**")
+            d = scenarios["base"]["dcf"]
+            ccy = inputs["currency"]
+            bridge = pd.DataFrame({
+                "Concepto": ["Dinero futuro (anos 1-10) a valor de hoy", "Valor mas alla del ano 10", "= Valor del negocio", "+ Caja - Deuda", "= Valor para accionistas"],
+                f"{ccy} M": [round(d["sum_pv_fcf"]), round(d["pv_tv_blended"]), round(d["enterprise_value"]), round(inputs["market_data"]["net_cash_eur_m"]), round(d["equity_value"])],
+            })
+            st.dataframe(bridge, use_container_width=True, hide_index=True)
 
     render_glossary()
 
@@ -656,16 +680,22 @@ def run_expert_mode():
                 rl_peers = sum(1 for p in peers_data if p.get("_error") == "rate_limited")
                 msg = f"Cargado {inputs['company']} ({ticker}) + {len(peers_data)} comparables"
                 if rl_peers:
-                    msg += f" ({rl_peers} peers sin datos por rate-limit Yahoo, reintenta luego)"
+                    msg += f" ({rl_peers} peers sin datos por rate-limit, reintenta luego)"
                 st.success(msg)
+            except data_fetcher.TickerNotFound:
+                st.error(
+                    f"**El ticker '{ticker}' no existe** en la fuente de datos. "
+                    "Revisa el simbolo o anade sufijo de bolsa (.MC, .L, .T, .KS)."
+                )
+                return
             except data_fetcher.RateLimited:
                 st.error(
-                    "**Yahoo Finance esta limitando peticiones** (fuente gratuita, no la app). "
+                    "**La fuente de datos esta limitando peticiones.** "
                     "Espera 1-2 min y reintenta. Tras cargar, queda en cache 1h."
                 )
                 return
             except Exception as e:
-                st.error(f"Error en carga de datos: {e}")
+                st.error(f"Error en carga de datos: tipo {type(e).__name__}.")
                 return
 
     if st.session_state.inputs is None:
@@ -698,9 +728,17 @@ def run_expert_mode():
     st.header(f"{company} ({ticker})")
 
     render_warnings(inputs)
-    render_simple_verdict(inputs, scenarios)
+    applicable = render_simple_verdict(inputs, scenarios)
     st.markdown("---")
     render_market_data_summary(inputs)
+
+    if applicable is False:
+        with st.expander("Diccionario: que significa cada termino"):
+            for term, meaning in explanations.GLOSSARY.items():
+                st.markdown(f"**{term}** - {meaning}")
+        st.markdown("---")
+        st.markdown(explanations.DISCLAIMER_SIMPLE)
+        return
 
     st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
@@ -783,6 +821,7 @@ def main():
     init_state()
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     render_header()
+    st.caption(f":warning: {explanations.DISCLAIMER_BANNER}")
 
     col1, col2 = st.columns([2, 3])
     with col1:

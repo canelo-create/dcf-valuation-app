@@ -29,7 +29,7 @@ GLOSSARY = {
 HOW_IT_WORKS = """
 **Como funciona en 4 pasos:**
 
-1. **Buscamos datos reales.** Descargamos las cuentas de la empresa (ingresos, beneficios, caja) de los ultimos 5 anos via Yahoo Finance.
+1. **Buscamos datos reales.** Descargamos las cuentas de la empresa (ingresos, beneficios, caja) de los ultimos 5 anos via Financial Modeling Prep.
 
 2. **Proyectamos el futuro.** Estimamos cuanto dinero generara los proximos 10 anos, con 3 escenarios: pesimista, base y optimista.
 
@@ -39,15 +39,29 @@ HOW_IT_WORKS = """
 """
 
 DISCLAIMER_SIMPLE = """
-**Importante:** Esto es una herramienta educativa, NO un consejo de inversion.
-Un modelo es solo tan bueno como sus supuestos. El mercado puede tener razon y el modelo equivocarse.
-Nunca inviertas solo por esto: verifica el reporte anual oficial y diversifica.
-Rendimientos pasados no garantizan futuros.
+**Importante:** Herramienta educativa, NO recomendacion de inversion. Un modelo
+vale solo lo que sus supuestos. El DCF NO aplica a bancos, aseguradoras, REITs ni
+empresas en perdidas. El mercado puede tener razon y el modelo equivocarse.
+Verifica el reporte anual oficial y diversifica. Rendimientos pasados no garantizan futuros.
 """
+
+DISCLAIMER_BANNER = (
+    "Herramienta educativa, no es asesoramiento financiero. El DCF no aplica a "
+    "bancos, aseguradoras, REITs ni empresas con perdidas."
+)
 
 
 def verdict(upside_pct: float, tv_pct: float, currency: str, base_price: float, current_price: float, meta: dict = None):
     """Devuelve (badge, color_hex, parrafo_explicativo). meta opcional con implied_growth/ROIC."""
+    # Audit fix: bancos/aseguradoras/REITs/empresas en perdidas -> DCF no aplica.
+    if meta and meta.get("dcf_applicable") is False:
+        reason = meta.get("not_applicable_reason") or "El DCF no aplica a esta empresa."
+        parrafo = (
+            f"**No se puede valorar esta empresa con este modelo.**\n\n{reason}\n\n"
+            f"El numero que saldria de un DCF aqui seria enganoso. No lo uses como senal de compra o venta."
+        )
+        return "NO VALORABLE CON DCF", "#9AA0A6", parrafo
+
     if upside_pct > 25:
         badge = "POSIBLEMENTE INFRAVALORADA"
         color = "#1DB954"
@@ -69,12 +83,17 @@ def verdict(upside_pct: float, tv_pct: float, currency: str, base_price: float, 
         color = "#E84B4B"
         gut = "el modelo cree que cuesta bastante mas de lo que vale segun sus flujos"
 
-    direction = "MAS" if base_price > current_price else "MENOS"
+    if -10 < upside_pct < 10:
+        simple = "el mercado y el modelo coinciden: no hay una diferencia material para actuar"
+    elif upside_pct >= 10:
+        simple = "segun los flujos esperados, la accion deberia valer **MAS** de lo que cuesta ahora"
+    else:
+        simple = "segun los flujos esperados, la accion deberia valer **MENOS** de lo que cuesta ahora"
     parrafo = (
         f"El modelo estima un valor de **{currency} {base_price:,.2f}** por accion. "
         f"Hoy cotiza a **{currency} {current_price:,.2f}**. "
         f"Eso es un **{upside_pct:+.0f}%** de diferencia: {gut}.\n\n"
-        f"En palabras simples: segun los flujos de caja que esperamos, la accion deberia valer **{direction}** de lo que cuesta ahora. "
+        f"En palabras simples: {simple}. "
     )
 
     if tv_pct > 75:
@@ -122,7 +141,7 @@ def reliability_note(inputs: dict) -> str:
 
     quality = "Alta" if not flags else ("Media" if len(flags) == 1 else "Baja")
     base = (
-        f"**Fiabilidad de datos: {quality}** | Fuente: Yahoo Finance (yfinance) | "
+        f"**Fiabilidad de datos: {quality}** | Fuente: Financial Modeling Prep (fallback yfinance) | "
         f"Historico: {n_years} anos | Fecha: {inputs.get('as_of_date', 'n/d')}"
     )
     if flags:

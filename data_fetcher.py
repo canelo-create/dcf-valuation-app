@@ -60,7 +60,7 @@ def fetch_company_fmp(ticker: str, as_of_date: str) -> dict:
 
     profile = _fmp_get("profile", ticker, key)
     if not profile:
-        raise ValueError(f"FMP: sin profile para {ticker}")
+        raise TickerNotFound(ticker)
     p = profile[0]
     inc = _fmp_get("income-statement", ticker, key, limit=5)
     cf = _fmp_get("cash-flow-statement", ticker, key, limit=5)
@@ -130,12 +130,33 @@ def fetch_company_fmp(ticker: str, as_of_date: str) -> dict:
     except Exception:
         pass
 
+    # Seed Base scenario from observed history (audit fix: defaults were generically
+    # conservative -> quality companies always "overvalued").
+    fy_sorted = sorted(historical.keys())
+    margins = [
+        h["ebitda"] / h["revenue"] * 100
+        for h in (historical[k] for k in fy_sorted)
+        if h.get("revenue")
+    ]
+    hist_margin = round(sorted(margins)[len(margins) // 2], 1) if margins else None
+    hist_cagr = None
+    if len(fy_sorted) >= 2:
+        r0 = historical[fy_sorted[0]].get("revenue", 0)
+        rn = historical[fy_sorted[-1]].get("revenue", 0)
+        if r0 > 0 and rn > 0:
+            hist_cagr = round(((rn / r0) ** (1 / (len(fy_sorted) - 1)) - 1) * 100, 1)
+
+    sector = (p.get("sector") or "").strip()
+    industry = (p.get("industry") or "").strip()
+
     return {
         "company": company,
         "ticker": ticker,
         "currency": currency,
         "as_of_date": as_of_date,
         "fiscal_year_end": fy_end_str,
+        "sector": sector,
+        "industry": industry,
         "data_sources": {
             "income_statement": f"Financial Modeling Prep stable ({ticker})",
             "cash_flow": f"Financial Modeling Prep stable ({ticker})",
@@ -156,10 +177,10 @@ def fetch_company_fmp(ticker: str, as_of_date: str) -> dict:
             "book_equity_eur_m": round(book_equity / 1_000_000) if book_equity else 0,
             "beta_5y": beta,
         },
-        "wacc": _default_wacc(beta, currency),
-        "projection_assumptions_base": _default_projection("base"),
-        "projection_assumptions_bear": _default_projection("bear"),
-        "projection_assumptions_bull": _default_projection("bull"),
+        "wacc": _default_wacc(beta, currency, mcap, debt, cash),
+        "projection_assumptions_base": _default_projection("base", hist_margin, hist_cagr),
+        "projection_assumptions_bear": _default_projection("bear", hist_margin, hist_cagr),
+        "projection_assumptions_bull": _default_projection("bull", hist_margin, hist_cagr),
         "sensitivity_ranges": {
             "wacc_pct": [6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5],
             "terminal_growth_pct": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
@@ -215,6 +236,10 @@ def fetch_peer_fmp(ticker: str, as_of_date: str) -> dict:
 
 class RateLimited(Exception):
     """Raised when the upstream data source rate-limits us."""
+
+
+class TickerNotFound(Exception):
+    """Raised when the ticker does not exist in the data source (not a rate-limit)."""
 
 
 def _yf_info_with_retry(ticker: str, retries: int = 3, base_delay: float = 1.5):
@@ -284,6 +309,8 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
             return inputs
         except RateLimited:
             raise
+        except TickerNotFound:
+            raise  # do NOT fall back to yfinance for a non-existent ticker
         except Exception:
             pass  # FMP failed for this ticker -> fall back to yfinance below
 
@@ -498,26 +525,35 @@ def fetch_peers(tickers: list, as_of_date: str) -> list:
     return [fetch_peer(t, as_of_date) for t in tickers]
 
 
-def _default_wacc(beta: float, currency: str) -> dict:
-    """Sensible defaults; user should override in UI."""
+def _default_wacc(beta: float, currency: str, mcap: float = 0, debt: float = 0, cash: float = 0) -> dict:
+    """WACC with real D/V weighting from balance (audit fix: was Ke only).
+
+    Net-cash firms -> ~100% equity (correct). Net-debt firms -> weighted with
+    after-tax cost of debt. User can still override in UI.
+    """
     if currency == "EUR":
-        rf = 3.2
-        rf_src = "Spain/Germany 10Y bond (avg)"
+        rf, rf_src = 3.2, "Spain/Germany 10Y bond (avg)"
     elif currency == "GBP":
-        rf = 4.2
-        rf_src = "UK 10Y Gilt"
+        rf, rf_src = 4.2, "UK 10Y Gilt"
     elif currency == "JPY":
-        rf = 1.5
-        rf_src = "Japan 10Y JGB"
+        rf, rf_src = 1.5, "Japan 10Y JGB"
     else:
-        rf = 4.0
-        rf_src = "US 10Y Treasury"
+        rf, rf_src = 4.0, "US 10Y Treasury"
 
     erp = 5.5
     cost_of_equity = rf + beta * erp
     tax = 22.0
-    pretax_debt = 5.0
+    pretax_debt = rf + 1.5  # rough investment-grade spread over risk-free
     after_tax_debt = pretax_debt * (1 - tax / 100)
+
+    net_debt = max(debt - cash, 0)  # only weight debt if firm is net-debt
+    v = (mcap or 0) + net_debt
+    if v > 0 and net_debt > 0:
+        e_w = mcap / v
+        d_w = net_debt / v
+    else:
+        e_w, d_w = 1.0, 0.0
+    wacc = e_w * cost_of_equity + d_w * after_tax_debt
 
     return {
         "risk_free_rate_pct": rf,
@@ -526,32 +562,41 @@ def _default_wacc(beta: float, currency: str) -> dict:
         "erp_source": "Damodaran current ERP",
         "beta": beta,
         "cost_of_equity_pct": round(cost_of_equity, 2),
-        "pretax_cost_of_debt_pct": pretax_debt,
+        "pretax_cost_of_debt_pct": round(pretax_debt, 2),
         "tax_rate_pct": tax,
         "after_tax_cost_of_debt_pct": round(after_tax_debt, 2),
-        "equity_weight_pct": 100.0,
-        "debt_weight_pct": 0.0,
-        "wacc_pct": round(cost_of_equity, 2),
-        "note": "Default WACC; review and adjust in UI.",
+        "equity_weight_pct": round(e_w * 100, 1),
+        "debt_weight_pct": round(d_w * 100, 1),
+        "wacc_pct": round(wacc, 2),
+        "note": "WACC ponderado E/V + D/V (after-tax kd). Ajustable en UI.",
     }
 
 
-def _default_projection(scenario: str) -> dict:
+def _default_projection(scenario: str, hist_margin: float = None, hist_cagr: float = None) -> dict:
+    # Seed Base from observed history when available (audit fix).
+    base_margin = hist_margin if hist_margin is not None else 25.0
+    base_g1 = max(min(hist_cagr, 15.0), 2.0) if hist_cagr is not None else 7.0
+
     if scenario == "base":
-        growth = [7.0, 6.0, 6.0, 5.0, 5.0, 4.0, 4.0, 3.5, 3.0, 2.5]
-        margin = [25.0] * 10
+        # decay observed growth toward a mature long-run rate
+        g_end = max(min(base_g1 * 0.35, 4.0), 2.0)
+        growth = [round(base_g1 + (g_end - base_g1) * i / 9, 1) for i in range(10)]
+        margin = [round(base_margin, 1)] * 10
         capex = [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0]
         tg = 2.5
         em = 12.0
     elif scenario == "bear":
-        growth = [3.0, 2.0, 2.0, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
-        margin = [22.0, 21.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0]
+        g1 = max(base_g1 * 0.45, 1.0)
+        growth = [round(max(g1 - 0.15 * i, 1.0), 1) for i in range(10)]
+        margin = [round(max(base_margin - 5, 8), 1)] * 10
         capex = [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0]
         tg = 1.5
         em = 9.0
     else:  # bull
-        growth = [9.0, 8.0, 7.0, 7.0, 6.0, 6.0, 5.0, 5.0, 4.0, 3.5]
-        margin = [27.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0]
+        g1 = min(base_g1 * 1.3, 18.0)
+        g_end = max(min(g1 * 0.4, 5.0), 3.0)
+        growth = [round(g1 + (g_end - g1) * i / 9, 1) for i in range(10)]
+        margin = [round(base_margin + 3, 1)] * 10
         capex = [6.0, 6.0, 5.5, 5.5, 5.0, 5.0, 4.5, 4.5, 4.0, 4.0]
         tg = 3.0
         em = 14.0

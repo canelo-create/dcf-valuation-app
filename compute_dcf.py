@@ -145,6 +145,42 @@ def compute_roic(inputs):
     return nopat / invested * 100
 
 
+_NON_DCF_KEYWORDS = (
+    "bank", "banco", "insurance", "insurer", "aseguradora", "reinsurance",
+    "capital markets", "asset management", "financial services", "diversified financ",
+    "mortgage", "reit", "real estate investment",
+)
+
+
+def valuation_applicable(inputs: dict):
+    """Audit fix: standard DCF is invalid for banks/insurers/REITs (no traditional
+    FCF, debt is operating) and for loss-making firms (FCF/EBITDA<0 -> absurd output).
+    Returns (applicable: bool, reason: str|None).
+    """
+    sector = (inputs.get("sector") or "").lower()
+    industry = (inputs.get("industry") or "").lower()
+    blob = f"{sector} {industry}"
+    for kw in _NON_DCF_KEYWORDS:
+        if kw in blob:
+            return False, (
+                f"Sector {inputs.get('industry') or inputs.get('sector') or 'financiero'}: "
+                "el DCF estandar NO aplica (bancos, aseguradoras y REITs no tienen FCF "
+                "tradicional; su deuda es operativa). Usa Dividend Discount Model o P/B vs ROE."
+            )
+    hist = inputs.get("historical", {})
+    if hist:
+        keys = sorted(hist.keys())
+        fcfs = [hist[k].get("fcf", 0) for k in keys]
+        avg_fcf = sum(fcfs) / len(fcfs) if fcfs else 0
+        latest_ebitda = hist[keys[-1]].get("ebitda", 0)
+        if avg_fcf < 0 or latest_ebitda < 0:
+            return False, (
+                "Empresa con FCF o EBITDA negativo en los datos disponibles. Un DCF "
+                "produce numeros sin sentido aqui. Mira P/Ventas y comparables del sector."
+            )
+    return True, None
+
+
 def run_all(inputs):
     fy_keys = sorted(inputs["historical"].keys())
     base_fy = fy_keys[-1]
@@ -181,11 +217,14 @@ def run_all(inputs):
         wacc, n - 0.5,
     )
     roic = compute_roic(inputs)
+    applicable, reason = valuation_applicable(inputs)
     scenarios["_meta"] = {
         "implied_growth_pct": g_impl,
         "roic_pct": roic,
         "wacc_pct": wacc,
         "roic_vs_wacc": (None if roic is None else ("crea valor" if roic > wacc else "destruye valor")),
+        "dcf_applicable": applicable,
+        "not_applicable_reason": reason,
     }
 
     print(f"{'='*80}\n{company} ({ticker}) DCF VALUATION SUMMARY\n{'='*80}")
