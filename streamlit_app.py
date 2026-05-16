@@ -21,6 +21,7 @@ import data_fetcher
 import explanations
 import insights as insights_mod
 import memo_generator
+import wallet as wallet_mod
 
 st.set_page_config(
     page_title="Valoracion de Renta Variable | DCF + Comparables",
@@ -190,6 +191,139 @@ def render_insights(inputs, scenarios, peers_data):
                 </div>""",
                 unsafe_allow_html=True,
             )
+
+
+def render_wallet(inputs):
+    st.markdown("### Mi Cartera")
+    st.warning(
+        "Conectar un broker e introducir ordenes implica RIESGO REAL de perdida de capital. "
+        "Esta funcion es educativa. Por defecto usa **Paper Trading** (dinero ficticio). "
+        "Las claves API se usan solo en tu sesion del navegador, no se guardan ni se suben a ningun sitio. "
+        "No es asesoramiento de inversion."
+    )
+
+    sub = st.tabs(["Alpaca (acciones)", "Polymarket (solo lectura)"])
+
+    # ---------- Alpaca ----------
+    with sub[0]:
+        st.caption("Crea claves en alpaca.markets. Empieza con claves de Paper (ficticio).")
+        secrets_key = None
+        try:
+            secrets_key = st.secrets.get("ALPACA_API_KEY")
+            secrets_sec = st.secrets.get("ALPACA_API_SECRET")
+        except Exception:
+            secrets_sec = None
+
+        paper = st.toggle("Paper Trading (dinero ficticio)", value=True, key="alp_paper")
+        if not paper:
+            st.error(
+                "MODO LIVE: las ordenes usan DINERO REAL. Verifica simbolo, cantidad y lado "
+                "antes de confirmar. Tu decides y asumes el riesgo."
+            )
+        col_k, col_s = st.columns(2)
+        akey = col_k.text_input("Alpaca API Key ID", value=secrets_key or "", type="password", key="alp_key")
+        asec = col_s.text_input("Alpaca API Secret", value=secrets_sec or "", type="password", key="alp_sec")
+
+        if st.button("Conectar Alpaca", key="alp_conn"):
+            try:
+                acct = wallet_mod.alpaca_account(akey, asec, paper=paper)
+                st.session_state["alp_acct"] = acct
+                st.session_state["alp_ok"] = True
+                st.success("Conectado.")
+            except wallet_mod.WalletError as e:
+                st.session_state["alp_ok"] = False
+                st.error(str(e))
+
+        if st.session_state.get("alp_ok"):
+            try:
+                acct = wallet_mod.alpaca_account(akey, asec, paper=paper)
+                positions = wallet_mod.alpaca_positions(akey, asec, paper=paper)
+            except wallet_mod.WalletError as e:
+                st.error(str(e))
+                return
+
+            ccy = acct.get("currency", "USD")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Valor cartera", f"{ccy} {float(acct.get('portfolio_value', 0)):,.0f}")
+            c2.metric("Efectivo", f"{ccy} {float(acct.get('cash', 0)):,.0f}")
+            c3.metric("Poder de compra", f"{ccy} {float(acct.get('buying_power', 0)):,.0f}")
+            c4.metric("Modo", "PAPER" if paper else "LIVE")
+
+            if positions:
+                rows = []
+                for p in positions:
+                    rows.append({
+                        "Simbolo": p.get("symbol"),
+                        "Cantidad": p.get("qty"),
+                        "Valor mercado": round(float(p.get("market_value", 0)), 2),
+                        "P&L no realizado": round(float(p.get("unrealized_pl", 0)), 2),
+                        "P&L %": round(float(p.get("unrealized_plpc", 0)) * 100, 2),
+                    })
+                st.markdown("**Posiciones**")
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("Sin posiciones abiertas.")
+
+            st.markdown("---")
+            st.markdown("**Nueva orden** (basada en tu analisis)")
+            base_sym = inputs.get("ticker", "").split(".")[0]
+            o1, o2, o3 = st.columns(3)
+            sym = o1.text_input("Simbolo", value=base_sym, key="ord_sym")
+            qty = o2.number_input("Cantidad (acciones)", min_value=0.0, value=1.0, step=1.0, key="ord_qty")
+            side = o3.selectbox("Lado", ["buy", "sell"], key="ord_side")
+            verdict_hint = ""
+            sc = st.session_state.get("scenarios")
+            if sc and inputs.get("market_data", {}).get("current_price_eur"):
+                imp = sc["base"]["dcf"]["implied_share_price"]
+                cur = inputs["market_data"]["current_price_eur"]
+                up = (imp / cur - 1) * 100 if cur else 0
+                verdict_hint = f" | Modelo: valor implicito {up:+.0f}% vs mercado"
+            st.caption(f"Orden {side.upper()} {qty} {sym} a mercado, {'PAPER' if paper else 'LIVE'}{verdict_hint}")
+
+            confirm = st.checkbox("Entiendo el riesgo y quiero enviar esta orden", key="ord_confirm")
+            if st.button("Enviar orden", key="ord_send", disabled=not confirm):
+                try:
+                    res = wallet_mod.alpaca_place_order(akey, asec, sym, qty, side, paper=paper)
+                    st.success(f"Orden enviada. ID: {res.get('id', '?')} | estado: {res.get('status', '?')}")
+                except wallet_mod.WalletError as e:
+                    st.error(str(e))
+
+            recent = wallet_mod.alpaca_recent_orders(akey, asec, paper=paper, limit=10)
+            if recent:
+                st.markdown("**Ordenes recientes**")
+                st.dataframe(pd.DataFrame([
+                    {"Simbolo": o.get("symbol"), "Lado": o.get("side"), "Cant": o.get("qty"),
+                     "Estado": o.get("status"), "Fecha": (o.get("submitted_at") or "")[:19]}
+                    for o in recent
+                ]), use_container_width=True, hide_index=True)
+
+    # ---------- Polymarket ----------
+    with sub[1]:
+        st.caption(
+            "Solo lectura. Pega la direccion publica de tu wallet (0x...). "
+            "Esta app NUNCA pide ni maneja tu private key: ejecutar ordenes en Polymarket "
+            "requiere firmar con la clave privada, y hacerlo desde una app web seria un riesgo "
+            "de seguridad grave. Para operar usa la web oficial de Polymarket."
+        )
+        addr = st.text_input("Direccion wallet Polymarket (0x...)", key="pm_addr")
+        if st.button("Ver posiciones Polymarket", key="pm_btn") and addr:
+            try:
+                pos = wallet_mod.polymarket_positions(addr)
+                if not pos:
+                    st.info("Sin posiciones o wallet sin actividad.")
+                else:
+                    rows = []
+                    for p in pos[:50]:
+                        rows.append({
+                            "Mercado": str(p.get("title") or p.get("market") or "?")[:60],
+                            "Resultado": p.get("outcome"),
+                            "Tamano": p.get("size"),
+                            "Valor actual": p.get("currentValue") or p.get("value"),
+                            "P&L": p.get("cashPnl") or p.get("pnl"),
+                        })
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            except wallet_mod.WalletError as e:
+                st.error(str(e))
 
 
 def render_glossary():
@@ -449,6 +583,102 @@ def _plotly_dark_layout(fig, title):
         height=420,
     )
     return fig
+
+
+def render_historical_trend(inputs):
+    ccy = inputs["currency"]
+    hist = inputs["historical"]
+    keys = sorted(hist.keys())
+    if len(keys) < 2:
+        st.info("Historico insuficiente para graficar tendencia.")
+        return
+    rev = [hist[k].get("revenue", 0) for k in keys]
+    ebitda = [hist[k].get("ebitda", 0) for k in keys]
+    fcf = [hist[k].get("fcf", 0) for k in keys]
+    margin = [(e / r * 100) if r else 0 for e, r in zip(ebitda, rev)]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=keys, y=rev, name="Ingresos", marker_color=SPOTIFY_GREEN))
+    fig.add_trace(go.Bar(x=keys, y=ebitda, name="EBITDA", marker_color="#1ED760"))
+    fig.add_trace(go.Bar(x=keys, y=fcf, name="FCF", marker_color="#7CE3A4"))
+    fig.add_trace(go.Scatter(x=keys, y=margin, name="Margen EBITDA %", yaxis="y2",
+                             mode="lines+markers", line=dict(color="#E8C547", width=3)))
+    _plotly_dark_layout(fig, f"Historico {len(keys)} anos ({ccy} M)")
+    fig.update_layout(
+        barmode="group", xaxis_title="Ano fiscal", yaxis_title=f"Importe ({ccy} M)",
+        yaxis2=dict(title="Margen %", overlaying="y", side="right",
+                    gridcolor=SPOTIFY_TERTIARY, color="#E8C547", range=[0, max(margin) * 1.4 if margin else 50]),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_waterfall(inputs, scenarios):
+    ccy = inputs["currency"]
+    d = scenarios["base"]["dcf"]
+    nc = inputs["market_data"]["net_cash_eur_m"]
+    fig = go.Figure(go.Waterfall(
+        orientation="v",
+        measure=["relative", "relative", "total", "relative", "total"],
+        x=["VP Flujos<br>(Y1-Y10)", "VP Valor<br>Terminal", "Valor Empresa", "Caja - Deuda", "Valor Equity"],
+        y=[round(d["sum_pv_fcf"]), round(d["pv_tv_blended"]), 0, round(nc), 0],
+        text=[f"{ccy} {v:,.0f}M" for v in [d["sum_pv_fcf"], d["pv_tv_blended"], d["enterprise_value"], nc, d["equity_value"]]],
+        textposition="outside",
+        connector={"line": {"color": SPOTIFY_TEXT_MUTED}},
+        increasing={"marker": {"color": SPOTIFY_GREEN}},
+        decreasing={"marker": {"color": "#E84B4B"}},
+        totals={"marker": {"color": "#1ED760"}},
+    ))
+    _plotly_dark_layout(fig, f"Puente de valoracion - de flujos a valor por accion ({ccy} M)")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_tornado(inputs, scenarios):
+    ccy = inputs["currency"]
+    current = inputs["market_data"].get("current_price_eur") or 0
+    cases = [("Pesimista", "bear", "#E84B4B"), ("Base", "base", "#E8C547"), ("Optimista", "bull", SPOTIFY_GREEN)]
+    fig = go.Figure()
+    for label, key, color in cases:
+        p = scenarios[key]["dcf"]["implied_share_price"]
+        fig.add_trace(go.Bar(y=[label], x=[p], orientation="h", marker_color=color,
+                             text=[f"{ccy} {p:,.2f}"], textposition="auto", name=label, showlegend=False))
+    if current:
+        fig.add_vline(x=current, line_dash="dash", line_color="#FFFFFF",
+                      annotation_text=f"Mercado {ccy} {current:,.2f}", annotation_font_color="#FFFFFF")
+    _plotly_dark_layout(fig, "Rango de valor por escenario vs precio de mercado")
+    fig.update_layout(height=300, xaxis_title=f"Precio implicito ({ccy})")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_peers_scatter(inputs, peers_data):
+    if not peers_data or len(peers_data) < 2:
+        st.info("Anade comparables para ver el mapa de posicionamiento.")
+        return
+    xs, ys, sizes, names = [], [], [], []
+    for p in peers_data:
+        try:
+            ev_ebitda = float(p.get("EV_EBITDA", 0))
+            mgn = float(p.get("Operating_Margin_pct", 0))
+            mcap = float(p.get("Market_Cap_LCY", 0))
+        except (TypeError, ValueError):
+            continue
+        if ev_ebitda <= 0 or ev_ebitda > 80:
+            continue
+        xs.append(mgn)
+        ys.append(ev_ebitda)
+        sizes.append(max((mcap / 1e9) ** 0.5 * 3, 10))
+        names.append(p.get("Company", "?"))
+    if not xs:
+        st.info("Datos de comparables insuficientes para el scatter.")
+        return
+    fig = go.Figure(go.Scatter(
+        x=xs, y=ys, mode="markers+text", text=names, textposition="top center",
+        textfont=dict(color="#FFFFFF", size=10),
+        marker=dict(size=sizes, color=ys, colorscale=[[0, "#1DB954"], [1, "#E84B4B"]],
+                    showscale=True, colorbar=dict(title="EV/EBITDA"), line=dict(color="#FFFFFF", width=1)),
+    ))
+    _plotly_dark_layout(fig, "Mapa: margen operativo vs valoracion (tamano = capitalizacion)")
+    fig.update_layout(xaxis_title="Margen operativo %", yaxis_title="EV / EBITDA (mas bajo = mas barato)")
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("Abajo-derecha (alto margen, multiplo bajo) = mejor relacion calidad/precio relativo.")
 
 
 def render_projection_chart(inputs, scenarios):
@@ -771,12 +1001,14 @@ def run_expert_mode():
     st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
 
-    tabs = st.tabs(["Insights", "Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Diccionario"])
+    tabs = st.tabs(["Insights", "Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Mi Cartera", "Diccionario"])
 
     with tabs[0]:
         render_insights(inputs, scenarios, peers_data)
 
     with tabs[1]:
+        render_waterfall(inputs, scenarios)
+        render_tornado(inputs, scenarios)
         ccy = inputs["currency"]
         st.markdown(f"**Precio implicito caso base: {ccy} {scenarios['base']['dcf']['implied_share_price']:.2f}**")
         upside = (scenarios["base"]["dcf"]["implied_share_price"] / inputs["market_data"]["current_price_eur"] - 1) * 100
@@ -822,10 +1054,12 @@ def run_expert_mode():
 
     with tabs[4]:
         st.markdown("**Empresas comparables**")
+        render_peers_scatter(inputs, peers_data)
         render_comps_table(peers_data)
 
     with tabs[5]:
         st.markdown("**Financieros historicos (ultimos 5 anos disponibles)**")
+        render_historical_trend(inputs)
         render_historicals_table(inputs)
 
     with tabs[6]:
@@ -833,6 +1067,9 @@ def run_expert_mode():
         render_downloads(inputs, scenarios, peers_data)
 
     with tabs[7]:
+        render_wallet(inputs)
+
+    with tabs[8]:
         for term, meaning in explanations.GLOSSARY.items():
             st.markdown(f"**{term}** — {meaning}")
         st.markdown("---")
