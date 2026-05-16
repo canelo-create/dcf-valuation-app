@@ -21,7 +21,13 @@ import data_fetcher
 import explanations
 import insights as insights_mod
 import memo_generator
+import news as news_mod
 import wallet as wallet_mod
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_news(query: str, max_records: int = 18):
+    return news_mod.gdelt_query(query, max_records=max_records)
 
 st.set_page_config(
     page_title="Valoracion de Renta Variable | DCF + Comparables",
@@ -403,6 +409,59 @@ def render_wallet(inputs):
                     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
             except wallet_mod.WalletError as e:
                 st.error(str(e))
+
+
+def _render_news_list(items):
+    if not items:
+        st.caption("Sin titulares recientes para este filtro.")
+        return
+    for a in items:
+        dom = a.get("domain", "")
+        date = a.get("date", "")
+        title = a.get("title", "")
+        url = a.get("url", "")
+        st.markdown(
+            f"""<div style="background-color:#181818;border-left:3px solid {SPOTIFY_GREEN};
+            border-radius:5px;padding:0.6rem 0.9rem;margin-bottom:0.45rem;">
+            <a href="{url}" target="_blank" style="color:#FFFFFF;font-weight:600;
+            text-decoration:none;font-size:0.95rem;">{title}</a><br>
+            <span style="color:#B3B3B3;font-size:0.78rem;">{dom} · {date}</span>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+
+def render_news(inputs):
+    st.markdown("### Monitor de noticias global")
+    st.caption(
+        "Agregador en tiempo casi real via GDELT (miles de medios mundiales, gratis). "
+        "Mercados, macro, geopolitica y materias primas. No es un Bloomberg Terminal "
+        "(sin datos propietarios ni precios en vivo): es un radar de titulares global."
+    )
+    if st.button("Actualizar titulares", key="news_refresh"):
+        _cached_news.clear()
+        st.rerun()
+
+    cats = list(news_mod.CATEGORIES.items())
+    company = (inputs or {}).get("company", "")
+    tab_labels = [c[0] for c in cats]
+    if company:
+        tab_labels.append(f"Tu empresa: {company[:18]}")
+    ntabs = st.tabs(tab_labels)
+    for i, (name, query) in enumerate(cats):
+        with ntabs[i]:
+            try:
+                _render_news_list(_cached_news(query))
+            except news_mod.NewsError as e:
+                st.warning(str(e))
+    if company:
+        with ntabs[-1]:
+            try:
+                q = f'"{company.split()[0]}" {inputs.get("ticker", "")}'.strip()
+                _render_news_list(_cached_news(q, 14))
+            except news_mod.NewsError as e:
+                st.warning(str(e))
+    st.caption("Titulares cacheados 10 min. Pulsa Actualizar para forzar refresco.")
 
 
 def render_glossary():
@@ -1102,7 +1161,7 @@ def run_expert_mode():
     st.markdown("### Escenarios de valoracion")
     render_scenario_cards(inputs, scenarios)
 
-    tabs = st.tabs(["Insights", "Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Mi Cartera", "Diccionario"])
+    tabs = st.tabs(["Insights", "Resumen", "Proyeccion", "Sensibilidad", "Comparables", "Historicos", "Descargas", "Mi Cartera", "Noticias", "Diccionario"])
 
     with tabs[0]:
         render_insights(inputs, scenarios, peers_data)
@@ -1171,6 +1230,9 @@ def run_expert_mode():
         render_wallet(inputs)
 
     with tabs[8]:
+        render_news(inputs)
+
+    with tabs[9]:
         for term, meaning in explanations.GLOSSARY.items():
             st.markdown(f"**{term}** — {meaning}")
         st.markdown("---")
