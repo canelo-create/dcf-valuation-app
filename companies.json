@@ -375,10 +375,12 @@
     "Walmart de Mexico": "WMMVF",
     "Grupo Mexico": "GMEXICOB.MX",
     "Cemex": "CX",
-    "Bancolombia": "CIB",
-    "Ecopetrol": "EC",
     "Banco de Chile": "BCH",
-    "Falabella": "FALABELLA.SN"
+    "Falabella": "FALABELLA.SN",
+    "Grupo Aval (Colombia, US ADR)": "AVAL",
+    "Tecnoglass (Colombia, US listed)": "TGLS",
+    "Bancolombia / Grupo Cibest (Colombia, US ADR)": "CIB",
+    "Ecopetrol (Colombia, US ADR)": "EC"
   },
   "Canada / Australia": {
     "Royal Bank of Canada": "RY.TO",
