@@ -194,19 +194,29 @@ def render_insights(inputs, scenarios, peers_data):
 
 
 def render_wallet(inputs):
-    st.markdown("### Mi Cartera")
-    st.warning(
-        "Conectar un broker e introducir ordenes implica RIESGO REAL de perdida de capital. "
-        "Esta funcion es educativa. Por defecto usa **Paper Trading** (dinero ficticio). "
-        "Las claves API se usan solo en tu sesion del navegador, no se guardan ni se suben a ningun sitio. "
-        "No es asesoramiento de inversion."
+    st.markdown("### Mi Cartera - Laboratorio de simulacion")
+    st.info(
+        "Practica con **dinero ficticio** (paper trading). Toma las tesis del analisis, "
+        "ejecuta ordenes simuladas, y comprueba con el tiempo si seguir el modelo te "
+        "hubiera funcionado. Sin riesgo: ni un euro real. Asi aprendes y decides si el "
+        "servicio te aporta antes de invertir de verdad."
     )
 
     sub = st.tabs(["Alpaca (acciones)", "Polymarket (solo lectura)"])
 
     # ---------- Alpaca ----------
     with sub[0]:
-        st.caption("Crea claves en alpaca.markets. Empieza con claves de Paper (ficticio).")
+        with st.expander("Como empezar gratis (2 minutos, sin meter dinero)"):
+            st.markdown(
+                "1. Entra en **alpaca.markets** y crea una cuenta gratis.\n"
+                "2. En el dashboard cambia a **Paper Trading** (arriba). Es una cartera "
+                "ficticia de 100.000 USD, no necesitas fondear nada.\n"
+                "3. Ve a **Home -> API Keys -> Generate** (asegurate de estar en Paper).\n"
+                "4. Copia *API Key ID* y *Secret* y pegalos aqui abajo. Solo viven en tu "
+                "sesion del navegador, no se guardan.\n"
+                "5. Deja activado **Paper Trading** abajo y empieza a simular."
+            )
+        st.caption("Modo Paper = dinero ficticio. Ideal para aprender y validar la metodologia sin riesgo.")
         secrets_key = None
         try:
             secrets_key = st.secrets.get("ALPACA_API_KEY")
@@ -272,30 +282,74 @@ def render_wallet(inputs):
             qty = o2.number_input("Cantidad (acciones)", min_value=0.0, value=1.0, step=1.0, key="ord_qty")
             side = o3.selectbox("Lado", ["buy", "sell"], key="ord_side")
             verdict_hint = ""
+            model_verdict, model_up = "NA", 0.0
             sc = st.session_state.get("scenarios")
             if sc and inputs.get("market_data", {}).get("current_price_eur"):
                 imp = sc["base"]["dcf"]["implied_share_price"]
                 cur = inputs["market_data"]["current_price_eur"]
-                up = (imp / cur - 1) * 100 if cur else 0
-                verdict_hint = f" | Modelo: valor implicito {up:+.0f}% vs mercado"
+                model_up = (imp / cur - 1) * 100 if cur else 0
+                m = sc.get("_meta", {})
+                if m.get("dcf_applicable") is False:
+                    model_verdict = "NOVALORABLE"
+                elif model_up > 10:
+                    model_verdict = "BARATA"
+                elif model_up < -10:
+                    model_verdict = "CARA"
+                else:
+                    model_verdict = "JUSTA"
+                verdict_hint = f" | Modelo: {model_verdict} ({model_up:+.0f}% vs mercado)"
             st.caption(f"Orden {side.upper()} {qty} {sym} a mercado, {'PAPER' if paper else 'LIVE'}{verdict_hint}")
+            st.caption("La orden se etiqueta con el veredicto del modelo para medir despues si seguirlo funciona.")
 
-            confirm = st.checkbox("Entiendo el riesgo y quiero enviar esta orden", key="ord_confirm")
-            if st.button("Enviar orden", key="ord_send", disabled=not confirm):
+            confirm = st.checkbox("Entiendo que es una simulacion y quiero enviar esta orden", key="ord_confirm")
+            if st.button("Enviar orden simulada", key="ord_send", disabled=not confirm):
                 try:
-                    res = wallet_mod.alpaca_place_order(akey, asec, sym, qty, side, paper=paper)
+                    tag = wallet_mod.make_order_tag(model_verdict, model_up)
+                    res = wallet_mod.alpaca_place_order(akey, asec, sym, qty, side, paper=paper, client_order_id=tag)
                     st.success(f"Orden enviada. ID: {res.get('id', '?')} | estado: {res.get('status', '?')}")
                 except wallet_mod.WalletError as e:
                     st.error(str(e))
 
-            recent = wallet_mod.alpaca_recent_orders(akey, asec, paper=paper, limit=10)
-            if recent:
-                st.markdown("**Ordenes recientes**")
-                st.dataframe(pd.DataFrame([
-                    {"Simbolo": o.get("symbol"), "Lado": o.get("side"), "Cant": o.get("qty"),
-                     "Estado": o.get("status"), "Fecha": (o.get("submitted_at") or "")[:19]}
-                    for o in recent
-                ]), use_container_width=True, hide_index=True)
+            st.markdown("---")
+            st.markdown("**Resultados de tus simulaciones** (¿seguir el modelo funciona?)")
+            recent = wallet_mod.alpaca_recent_orders(akey, asec, paper=paper, limit=50)
+            tagged = []
+            for o in recent:
+                v, up = wallet_mod.parse_order_tag(o.get("client_order_id", ""))
+                if v:
+                    tagged.append({
+                        "Fecha": (o.get("submitted_at") or "")[:10],
+                        "Simbolo": o.get("symbol"),
+                        "Lado": o.get("side"),
+                        "Cant": o.get("qty"),
+                        "Veredicto modelo": v,
+                        "Upside@entrada %": up,
+                        "Estado": o.get("status"),
+                    })
+            if tagged:
+                pos_by_sym = {}
+                try:
+                    for p in wallet_mod.alpaca_positions(akey, asec, paper=paper):
+                        pos_by_sym[p.get("symbol")] = float(p.get("unrealized_plpc", 0)) * 100
+                except wallet_mod.WalletError:
+                    pass
+                for t in tagged:
+                    t["P&L actual %"] = round(pos_by_sym.get(t["Simbolo"], 0), 2)
+                df = pd.DataFrame(tagged)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                aligned = [t for t in tagged if (t["Veredicto modelo"] == "BARATA" and t["Lado"] == "buy") or (t["Veredicto modelo"] == "CARA" and t["Lado"] == "sell")]
+                if aligned:
+                    avg = sum(t["P&L actual %"] for t in aligned) / len(aligned)
+                    cc1, cc2 = st.columns(2)
+                    cc1.metric("Operaciones alineadas con el modelo", len(aligned))
+                    cc2.metric("P&L medio (alineadas)", f"{avg:+.2f}%")
+                    st.caption(
+                        "Operaciones donde compraste lo que el modelo decia BARATA o vendiste lo "
+                        "CARA. Si el P&L medio es positivo de forma consistente con muchas operaciones, "
+                        "la metodologia te esta aportando. Pocas operaciones aun no demuestran nada."
+                    )
+            else:
+                st.info("Aun no hay ordenes simuladas etiquetadas. Envia alguna desde el analisis para empezar a medir.")
 
     # ---------- Polymarket ----------
     with sub[1]:
