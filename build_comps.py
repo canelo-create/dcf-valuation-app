@@ -208,8 +208,7 @@ def build_workbook(inputs, rows):
         ws.column_dimensions[get_column_letter(c)].width = 22
     ws.column_dimensions["A"].width = 28
 
-    wb.save(output_path)
-    print(f"Wrote {output_path}")
+    return wb
 
 
 def main():

@@ -193,7 +193,7 @@ def render_insights(inputs, scenarios, peers_data):
 
 
 def render_glossary():
-    with st.expander("Diccionario: que significa cada termino (en cristiano)"):
+    with st.expander("Diccionario: que significa cada termino"):
         for term, meaning in explanations.GLOSSARY.items():
             st.markdown(f"**{term}** — {meaning}")
 
