@@ -9,11 +9,208 @@ Usage:
 """
 
 import datetime as dt
+import os
 import time
 from typing import Optional
 
 import requests
 import yfinance as yf
+
+FMP_BASE = "https://financialmodelingprep.com/stable"
+
+
+def _fmp_key() -> Optional[str]:
+    """Resolve FMP API key from env var or Streamlit secrets. Never hardcoded."""
+    k = os.environ.get("FMP_API_KEY")
+    if k:
+        return k.strip()
+    try:
+        import streamlit as st
+        return st.secrets.get("FMP_API_KEY")
+    except Exception:
+        return None
+
+
+def _fmp_get(path: str, symbol: str, key: str, limit: Optional[int] = None):
+    params = {"symbol": symbol, "apikey": key}
+    if limit:
+        params["limit"] = limit
+    r = requests.get(f"{FMP_BASE}/{path}", params=params, timeout=20)
+    if r.status_code == 429:
+        raise RateLimited(f"FMP rate-limit on {path} for {symbol}")
+    r.raise_for_status()
+    data = r.json()
+    if isinstance(data, dict) and data.get("Error Message"):
+        raise ValueError(f"FMP error: {data['Error Message'][:120]}")
+    return data
+
+
+def _num(v, default=0):
+    try:
+        return float(v) if v is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def fetch_company_fmp(ticker: str, as_of_date: str) -> dict:
+    """Build inputs dict from FMP stable endpoints. Raises if key missing or data unusable."""
+    key = _fmp_key()
+    if not key:
+        raise RuntimeError("no FMP key")
+
+    profile = _fmp_get("profile", ticker, key)
+    if not profile:
+        raise ValueError(f"FMP: sin profile para {ticker}")
+    p = profile[0]
+    inc = _fmp_get("income-statement", ticker, key, limit=5)
+    cf = _fmp_get("cash-flow-statement", ticker, key, limit=5)
+    bs = _fmp_get("balance-sheet-statement", ticker, key, limit=1)
+    if not inc:
+        raise ValueError(f"FMP: sin income statement para {ticker}")
+
+    company = p.get("companyName") or ticker
+    currency = p.get("currency") or "USD"
+    price = _num(p.get("price"))
+    mcap = _num(p.get("marketCap"))
+    beta = _num(p.get("beta"), 1.0)
+
+    bs0 = bs[0] if bs else {}
+    cash = _num(bs0.get("cashAndCashEquivalents")) + _num(bs0.get("shortTermInvestments"))
+    debt = _num(bs0.get("totalDebt"))
+    book_equity = _num(bs0.get("totalStockholdersEquity"))
+    net_cash = cash - debt
+    ev = mcap - net_cash
+
+    cf_by_year = {}
+    for row in cf:
+        cf_by_year[str(row.get("fiscalYear") or row.get("date", "")[:4])] = row
+
+    shares = 0
+    historical = {}
+    for row in sorted(inc, key=lambda x: str(x.get("fiscalYear") or x.get("date", ""))):
+        fy = str(row.get("fiscalYear") or row.get("date", "")[:4])
+        if not fy:
+            continue
+        rev = _num(row.get("revenue"))
+        ebit = _num(row.get("operatingIncome"))
+        ebitda = _num(row.get("ebitda")) or ebit
+        da = _num(row.get("depreciationAndAmortization")) or max(ebitda - ebit, 0)
+        ni = _num(row.get("netIncome"))
+        tax = _num(row.get("incomeTaxExpense"))
+        pretax = _num(row.get("incomeBeforeTax")) or (ni + tax)
+        shares = _num(row.get("weightedAverageShsOut")) or shares
+        c = cf_by_year.get(fy, {})
+        capex = abs(_num(c.get("capitalExpenditure")))
+        ocf = _num(c.get("operatingCashFlow"))
+        fcf = _num(c.get("freeCashFlow")) or (ocf - capex)
+        historical[f"FY{fy}"] = {
+            "period_end": row.get("date", ""),
+            "revenue": round(rev / 1_000_000),
+            "ebitda": round(ebitda / 1_000_000),
+            "ebit": round(ebit / 1_000_000),
+            "da": round(da / 1_000_000),
+            "capex": round(capex / 1_000_000),
+            "ocf": round(ocf / 1_000_000),
+            "fcf": round(fcf / 1_000_000),
+            "tax": round(tax / 1_000_000),
+            "pretax": round(pretax / 1_000_000),
+            "net_income": round(ni / 1_000_000),
+        }
+
+    if not historical:
+        raise ValueError(f"FMP: sin historico utilizable para {ticker}")
+    if not shares and price:
+        shares = mcap / price if price else 0
+
+    fy_end_str = "December 31"
+    try:
+        last_date = inc[0].get("date", "")
+        if last_date:
+            fy_end_str = dt.datetime.strptime(last_date, "%Y-%m-%d").strftime("%B %d")
+    except Exception:
+        pass
+
+    return {
+        "company": company,
+        "ticker": ticker,
+        "currency": currency,
+        "as_of_date": as_of_date,
+        "fiscal_year_end": fy_end_str,
+        "data_sources": {
+            "income_statement": f"Financial Modeling Prep stable ({ticker})",
+            "cash_flow": f"Financial Modeling Prep stable ({ticker})",
+            "balance_sheet": f"Financial Modeling Prep stable ({ticker})",
+            "comps": "peers (in memory)",
+            "risk_free_source": "Default. Override in app.",
+            "erp_source": "Damodaran default. Override in app.",
+        },
+        "historical": historical,
+        "market_data": {
+            "shares_outstanding_m": round(shares / 1_000_000) if shares else 0,
+            "current_price_eur": price,
+            "market_cap_eur_m": round(mcap / 1_000_000) if mcap else 0,
+            "cash_and_st_investments_eur_m": round(cash / 1_000_000) if cash else 0,
+            "total_financial_debt_eur_m": round(debt / 1_000_000) if debt else 0,
+            "net_cash_eur_m": round(net_cash / 1_000_000),
+            "enterprise_value_eur_m": round(ev / 1_000_000) if ev else 0,
+            "book_equity_eur_m": round(book_equity / 1_000_000) if book_equity else 0,
+            "beta_5y": beta,
+        },
+        "wacc": _default_wacc(beta, currency),
+        "projection_assumptions_base": _default_projection("base"),
+        "projection_assumptions_bear": _default_projection("bear"),
+        "projection_assumptions_bull": _default_projection("bull"),
+        "sensitivity_ranges": {
+            "wacc_pct": [6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5],
+            "terminal_growth_pct": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+            "exit_multiple": [9.0, 10.5, 12.0, 13.5, 15.0],
+        },
+    }
+
+
+def fetch_peer_fmp(ticker: str, as_of_date: str) -> dict:
+    key = _fmp_key()
+    if not key:
+        raise RuntimeError("no FMP key")
+    profile = _fmp_get("profile", ticker, key)
+    if not profile:
+        raise ValueError(f"FMP: sin profile peer {ticker}")
+    p = profile[0]
+    inc = _fmp_get("income-statement", ticker, key, limit=1)
+    i0 = inc[0] if inc else {}
+    bs = _fmp_get("balance-sheet-statement", ticker, key, limit=1)
+    b0 = bs[0] if bs else {}
+    rev = _num(i0.get("revenue"))
+    ebitda = _num(i0.get("ebitda"))
+    ni = _num(i0.get("netIncome"))
+    mcap = _num(p.get("marketCap"))
+    cash = _num(b0.get("cashAndCashEquivalents")) + _num(b0.get("shortTermInvestments"))
+    debt = _num(b0.get("totalDebt"))
+    ev = mcap - (cash - debt)
+    price = _num(p.get("price"))
+    return {
+        "Company": p.get("companyName") or ticker,
+        "Ticker": ticker,
+        "Currency": p.get("currency") or "USD",
+        "Revenue_TTM_LCY": rev,
+        "Gross_Profit_TTM_LCY": _num(i0.get("grossProfit")),
+        "EBITDA_TTM_LCY": ebitda,
+        "Net_Income_TTM_LCY": ni,
+        "Operating_Margin_pct": (_num(i0.get("operatingIncome")) / rev * 100) if rev else 0,
+        "Net_Margin_pct": (ni / rev * 100) if rev else 0,
+        "Market_Cap_LCY": mcap,
+        "Enterprise_Value_LCY": ev,
+        "EV_Sales": (ev / rev) if rev else 0,
+        "EV_EBITDA": (ev / ebitda) if ebitda else 0,
+        "PE_Trailing": (mcap / ni) if ni else 0,
+        "PE_Forward": 0,
+        "Beta_5Y": _num(p.get("beta"), 1.0),
+        "Shares_Outstanding": _num(i0.get("weightedAverageShsOut")),
+        "Stock_Price_LCY": price,
+        "Total_Cash_LCY": cash,
+        "Total_Debt_LCY": debt,
+        "As_of_Date": as_of_date,
+    }
 
 
 class RateLimited(Exception):
@@ -76,6 +273,19 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
     """
     if as_of_date is None:
         as_of_date = dt.date.today().isoformat()
+
+    # PRIMARY: Financial Modeling Prep (dedicated key, no shared-IP rate-limit).
+    # FALLBACK: yfinance (only if FMP key absent or FMP fails for this ticker).
+    if _fmp_key():
+        try:
+            inputs = fetch_company_fmp(ticker, as_of_date)
+            if peer_tickers:
+                inputs["peers_data"] = fetch_peers(peer_tickers, as_of_date)
+            return inputs
+        except RateLimited:
+            raise
+        except Exception:
+            pass  # FMP failed for this ticker -> fall back to yfinance below
 
     yt, info = _yf_info_with_retry(ticker)
     company = info.get("longName") or info.get("shortName") or ticker
@@ -237,7 +447,12 @@ def fetch_company(ticker: str, peer_tickers: Optional[list] = None, as_of_date: 
 
 
 def fetch_peer(ticker: str, as_of_date: str) -> dict:
-    """Fetch comps data for a single peer. Returns partial dict on rate-limit (does not crash the whole run)."""
+    """Fetch comps data for a single peer. FMP primary, yfinance fallback, empty row on hard fail."""
+    if _fmp_key():
+        try:
+            return fetch_peer_fmp(ticker, as_of_date)
+        except Exception:
+            pass  # fall back to yfinance
     try:
         yt, info = _yf_info_with_retry(ticker, retries=2)
     except RateLimited:
