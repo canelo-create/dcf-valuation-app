@@ -1,4 +1,4 @@
-"""Generate memo de analisis DCF en espanol desde inputs + scenarios."""
+"""Genera memo de análisis DCF en español desde inputs + scenarios."""
 
 from typing import Optional
 
@@ -30,29 +30,29 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     recommendation = _recommend(upside_base, tv_pct)
 
     lines = [
-        f"# Valoracion DCF: {company} ({ticker})",
+        f"# Valoración DCF: {company} ({ticker})",
         "",
-        f"**Fecha: {as_of}** | Metodologia: Proyeccion explicita 10 anos de FCF Unlevered, valor terminal mezclado (crecimiento perpetuo + multiplo de salida). Cifras en {ccy}.",
+        f"**Fecha: {as_of}** | Metodología: Proyección explícita 10 años de FCF Unlevered, valor terminal mezclado (crecimiento perpetuo + múltiplo de salida). Cifras en {ccy}.",
         "",
         "## Resumen Ejecutivo",
         "",
-        "| Metrica | Valor |",
+        "| Métrica | Valor |",
         "|---|---:|",
         f"| Precio actual | {ccy} {current:.2f} |",
-        f"| Precio implicito Base | {ccy} {base_price:.2f} |",
+        f"| Precio implícito Base | {ccy} {base_price:.2f} |",
         f"| **Potencial vs mercado** | **{upside_base:+.1f}%** |",
         f"| Caso Pesimista | {ccy} {bear_price:.2f} ({upside_bear:+.1f}%) |",
         f"| Caso Optimista | {ccy} {bull_price:.2f} ({upside_bull:+.1f}%) |",
         f"| WACC | {wacc_d['wacc_pct']:.2f}% |",
         f"| Terminal % del EV | {tv_pct:.1f}% ({'dentro' if 50 <= tv_pct <= 70 else 'FUERA'} banda 50-70%) |",
         "",
-        f"**Recomendacion:** {recommendation}",
+        f"**Recomendación:** {recommendation}",
         "",
-        "## Metodologia",
+        "## Metodología",
         "",
-        "### Financieros historicos",
+        "### Financieros históricos",
         "",
-        "| Metrica | " + " | ".join(sorted(inputs["historical"].keys())) + " |",
+        "| Métrica | " + " | ".join(sorted(inputs["historical"].keys())) + " |",
         "|---|" + "---:|" * len(inputs["historical"]),
     ]
     fy_keys = sorted(inputs["historical"].keys())
@@ -63,22 +63,22 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     lines.append("")
 
     lines.extend([
-        "### Construccion del WACC (CAPM)",
+        "### Construcción del WACC (CAPM)",
         "",
         "| Componente | Valor | Fuente |",
         "|---|---:|---|",
         f"| Tasa libre de riesgo | {wacc_d['risk_free_rate_pct']:.2f}% | {wacc_d['risk_free_source']} |",
         f"| Prima de riesgo del mercado | {wacc_d['equity_risk_premium_pct']:.2f}% | {wacc_d['erp_source']} |",
-        f"| Beta (5 anos) | {wacc_d['beta']:.2f} | yfinance |",
+        f"| Beta (5 años) | {wacc_d['beta']:.2f} | yfinance |",
         f"| **Coste del Equity** | **{wacc_d['cost_of_equity_pct']:.2f}%** | Rf + Beta * ERP |",
         f"| Tipo impositivo | {wacc_d['tax_rate_pct']:.1f}% | |",
         f"| **WACC** | **{wacc_d['wacc_pct']:.2f}%** | Aplicado a todos los escenarios |",
         "",
-        f"Posicion financiera: {ccy} {md['net_cash_eur_m']:,}M {'(caja neta)' if md['net_cash_eur_m'] > 0 else '(deuda neta)'}.",
+        f"Posición financiera: {ccy} {md['net_cash_eur_m']:,}M {'(caja neta)' if md['net_cash_eur_m'] > 0 else '(deuda neta)'}.",
         "",
-        "### Proyeccion (Caso Base, 10 anos explicitos)",
+        "### Proyección (Caso Base, 10 años explícitos)",
         "",
-        "| Ano | " + " | ".join(f"Y{y}" for y in range(1, 11)) + " |",
+        "| Año | " + " | ".join(f"Y{y}" for y in range(1, 11)) + " |",
         "|---|" + "---:|" * 10,
     ])
 
@@ -100,27 +100,27 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     lines.extend([
         "### Valor Terminal",
         "",
-        "| Metodo | TV Bruto | VP del TV |",
+        "| Método | TV Bruto | VP del TV |",
         "|---|---:|---:|",
         f"| Crecimiento perpetuo ({base['tg']:.1f}%) | {base['dcf']['tv_perpetuity']:,.0f} | {base['dcf']['pv_tv_perpetuity']:,.0f} |",
-        f"| Multiplo salida ({base['em']:.1f}x EBITDA Y10) | {base['dcf']['tv_exit_multiple']:,.0f} | {base['dcf']['pv_tv_exit']:,.0f} |",
+        f"| Múltiplo salida ({base['em']:.1f}x EBITDA Y10) | {base['dcf']['tv_exit_multiple']:,.0f} | {base['dcf']['pv_tv_exit']:,.0f} |",
         f"| **VP mezclado** | | **{base['dcf']['pv_tv_blended']:,.0f}** |",
         "",
-        "### Resumen de Valoracion",
+        "### Resumen de Valoración",
         "",
         "| Componente | Valor |",
         "|---|---:|",
-        f"| Suma VP de FCF explicitos (Y1-Y10) | {ccy} {base['dcf']['sum_pv_fcf']:,.0f}M |",
+        f"| Suma VP de FCF explícitos (Y1-Y10) | {ccy} {base['dcf']['sum_pv_fcf']:,.0f}M |",
         f"| VP del Valor Terminal | {ccy} {base['dcf']['pv_tv_blended']:,.0f}M |",
         f"| **Valor Empresa (EV)** | **{ccy} {base['dcf']['enterprise_value']:,.0f}M** |",
         f"| (+) Caja neta | {ccy} {md['net_cash_eur_m']:,}M |",
         f"| **Valor Equity** | **{ccy} {base['dcf']['equity_value']:,.0f}M** |",
-        f"| (/) Acciones en circulacion (M) | {md['shares_outstanding_m']:,} |",
-        f"| **Precio implicito por accion** | **{ccy} {base_price:.2f}** |",
+        f"| (/) Acciones en circulación (M) | {md['shares_outstanding_m']:,} |",
+        f"| **Precio implícito por acción** | **{ccy} {base_price:.2f}** |",
         "",
         "## Escenarios",
         "",
-        "| Escenario | Crec. Terminal | Multiplo salida | Precio implicito | Potencial |",
+        "| Escenario | Crec. Terminal | Múltiplo salida | Precio implícito | Potencial |",
         "|---|---:|---:|---:|---:|",
         f"| Pesimista | {bear['tg']:.1f}% | {bear['em']:.1f}x | {ccy} {bear_price:.2f} | {upside_bear:+.1f}% |",
         f"| **Base** | **{base['tg']:.1f}%** | **{base['em']:.1f}x** | **{ccy} {base_price:.2f}** | **{upside_base:+.1f}%** |",
@@ -132,7 +132,7 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
         lines.extend([
             "## Cross-check con comparables",
             "",
-            "Multiplos peer (TTM):",
+            "Múltiplos peer (TTM):",
             "",
             "| Empresa | EV/Ventas | EV/EBITDA | P/E (TTM) |",
             "|---|---:|---:|---:|",
@@ -149,7 +149,7 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
     except Exception:
         _ins = []
     if _ins:
-        lines.extend(["## Insights del analisis", "", _insights_mod.insights_summary_line(_ins), ""])
+        lines.extend(["## Insights del análisis", "", _insights_mod.insights_summary_line(_ins), ""])
         cats = {}
         for it in _ins:
             cats.setdefault(it["categoria"], []).append(it)
@@ -171,28 +171,28 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
         ])
         g_impl = meta.get("implied_growth_pct")
         if g_impl is not None:
-            lectura_g = "exigente" if g_impl > 6 else ("pesimista" if g_impl < 0 else "creible")
-            lines.append(f"| Crecimiento perpetuo implicito en el precio | {g_impl:.1f}% | {lectura_g} |")
+            lectura_g = "exigente" if g_impl > 6 else ("pesimista" if g_impl < 0 else "creíble")
+            lines.append(f"| Crecimiento perpetuo implícito en el precio | {g_impl:.1f}% | {lectura_g} |")
         roic = meta.get("roic_pct")
         if roic is not None:
             lines.append(f"| ROIC aproximado | {roic:.1f}% | vs WACC {meta.get('wacc_pct', 0):.1f}% -> {meta.get('roic_vs_wacc', 'n/d')} |")
         lines.append("")
-        lines.append("Metodo reverse-DCF (IE Corporate Finance): g = WACC - FCF_next / TV. ROIC > WACC implica creacion de valor.")
+        lines.append("Método reverse-DCF (IE Corporate Finance): g = WACC - FCF_next / TV. ROIC > WACC implica creación de valor.")
         lines.append("")
 
     lines.extend([
         "## Sanity checks",
         "",
-        f"- Terminal % del EV: {tv_pct:.1f}% ({'PASS' if 50 <= tv_pct <= 70 else 'FLAG - fuera del rango tipico 50-70%'})",
+        f"- Terminal % del EV: {tv_pct:.1f}% ({'PASS' if 50 <= tv_pct <= 70 else 'FLAG - fuera del rango típico 50-70%'})",
         f"- Spread Pesimista/Optimista: {abs(upside_bull - upside_bear):.0f}pp ({'razonable' if 50 <= abs(upside_bull - upside_bear) <= 150 else 'verificar supuestos'})",
         f"- WACC: {wacc_d['wacc_pct']:.2f}% ({'razonable' if 6 <= wacc_d['wacc_pct'] <= 15 else 'verificar'})",
         "",
         "## Limitaciones",
         "",
-        "1. Datos via API yfinance. Verificar contra reporte anual oficial para deliverable de produccion.",
-        "2. Tablas de sensibilidad en xlsx varian solo el terminal al WACC base. Para sensibilidad completa de WACC, modificar inputs y recalcular.",
-        "3. Sin integracion 3-statement. Operating lease liabilities (IFRS 16) embebidos en EBITDA.",
-        "4. Supuestos de proyeccion por defecto genericos. Revisar segun industria / guidance de la empresa.",
+        "1. Datos vía API yfinance. Verificar contra reporte anual oficial para deliverable de producción.",
+        "2. Tablas de sensibilidad en xlsx varían solo el terminal al WACC base. Para sensibilidad completa de WACC, modificar inputs y recalcular.",
+        "3. Sin integración 3-statement. Operating lease liabilities (IFRS 16) embebidos en EBITDA.",
+        "4. Supuestos de proyección por defecto genéricos. Revisar según industria / guidance de la empresa.",
         "5. Inputs WACC usan defaults si no se personalizan en UI. Country risk premium y beta deben ser company-specific.",
         "",
         "## AVISO LEGAL",
@@ -200,7 +200,7 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
         "NO ES ASESORAMIENTO FINANCIERO. Case study educativo y producto analista. Verificar contra reporte anual oficial. Rendimientos pasados no predicen futuros.",
         "",
         "Construido con skills open-source de Anthropic financial-services (Apache 2.0). Repositorio: https://github.com/anthropics/financial-services.",
-        "Convenciones metodologicas alineadas con IE Business School Corporate Finance: TV = FCF_next/(WACC-g) con g < WACC estricto, beta sin termino (1-t), WACC a valores de mercado, EV->Equity = EV - deuda + caja, reverse-DCF para crecimiento implicito, ROIC vs WACC para creacion de valor.",
+        "Convenciones metodológicas alineadas con IE Business School Corporate Finance: TV = FCF_next/(WACC-g) con g < WACC estricto, beta sin término (1-t), WACC a valores de mercado, EV->Equity = EV - deuda + caja, reverse-DCF para crecimiento implícito, ROIC vs WACC para creación de valor.",
         "",
         f"Generado: {as_of}",
     ])
@@ -210,15 +210,15 @@ def generate_memo(inputs: dict, scenarios: dict, peers_data: Optional[list] = No
 
 def _recommend(upside: float, tv_pct: float) -> str:
     if upside > 30:
-        rec = "**Potencial significativo.** Escenario optimista implicito; verificar durabilidad de la tesis."
+        rec = "**Potencial significativo.** Escenario optimista implícito; verificar durabilidad de la tesis."
     elif 10 <= upside <= 30:
-        rec = "**Potencial moderado.** Balance calidad/valoracion equilibrado. Considerar entrada en correccion."
+        rec = "**Potencial moderado.** Balance calidad/valoración equilibrado. Considerar entrada en corrección."
     elif -10 <= upside < 10:
-        rec = "**Valor justo.** Mercado alineado con valor intrinseco. Sin margen de seguridad claro."
+        rec = "**Valor justo.** Mercado alineado con valor intrínseco. Sin margen de seguridad claro."
     elif -30 < upside < -10:
         rec = "**Sobrevalorado.** Mercado paga premium no respaldado por flujos del caso base."
     else:
-        rec = "**Muy sobrevalorado por DCF.** Territorio caso pesimista. Tesis debil o sentiment es el driver."
+        rec = "**Muy sobrevalorado por DCF.** Territorio caso pesimista. Tesis débil o sentiment es el driver."
 
     if tv_pct > 75:
         rec += " IMPORTANTE: El valor terminal domina (>75% del EV), el resultado depende fuertemente de los supuestos terminales."

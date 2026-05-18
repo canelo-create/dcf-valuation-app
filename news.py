@@ -1,7 +1,7 @@
-"""Monitor de noticias global via GDELT (gratis, sin API key).
+"""Monitor de noticias global vía GDELT (gratis, sin API key).
 
 GDELT indexa miles de medios mundiales en tiempo casi real. Cubre mercados,
-macro y geopolitica. NO es un Bloomberg Terminal (sin datos propietarios ni
+macro y geopolítica. NO es un Bloomberg Terminal (sin datos propietarios ni
 precios en vivo): es un agregador honesto de noticias global y gratuito.
 """
 
@@ -47,20 +47,20 @@ def gdelt_query(query: str, max_records: int = 20, timespan: str = "3d",
             r = requests.get(GDELT, params=params, timeout=20,
                              headers={"User-Agent": "Mozilla/5.0 (news-monitor)"})
         except requests.RequestException as e:
-            raise NewsError(f"Conexion GDELT fallo: {e}")
+            raise NewsError(f"Conexión GDELT falló: {e}")
         if r.status_code == 429:
             if attempt < 2:
                 time.sleep(delay)
                 delay *= 2
                 continue
-            raise NewsError("GDELT esta limitando peticiones. Reintenta en un minuto.")
+            raise NewsError("GDELT está limitando peticiones. Reintenta en un minuto.")
         break
     if r is None or r.status_code != 200:
         raise NewsError(f"GDELT HTTP {r.status_code if r else 'sin respuesta'}")
     try:
         data = r.json()
     except ValueError:
-        return []  # GDELT a veces devuelve texto vacio si no hay resultados
+        return []  # GDELT a veces devuelve texto vacío si no hay resultados
     arts = data.get("articles", []) if isinstance(data, dict) else []
     out, seen = [], set()
     for a in arts:
@@ -77,10 +77,10 @@ def gdelt_query(query: str, max_records: int = 20, timespan: str = "3d",
     return out
 
 
-# Consultas curadas por categoria (un inversor profesional)
+# Consultas curadas por categoría (un inversor profesional)
 CATEGORIES = {
     "Mercados": '"stock market" OR equities OR "S&P 500" OR Nasdaq OR "bond yields" OR "earnings"',
-    "Macro y Economia": '"central bank" OR "interest rates" OR inflation OR recession OR GDP OR "Federal Reserve" OR ECB',
-    "Geopolitica": 'geopolitics OR sanctions OR "trade war" OR election OR conflict OR OPEC OR tariffs',
+    "Macro y Economía": '"central bank" OR "interest rates" OR inflation OR recession OR GDP OR "Federal Reserve" OR ECB',
+    "Geopolítica": 'geopolitics OR sanctions OR "trade war" OR election OR conflict OR OPEC OR tariffs',
     "Materias primas y FX": '"crude oil" OR gold OR "currency" OR "dollar index" OR commodities OR copper',
 }

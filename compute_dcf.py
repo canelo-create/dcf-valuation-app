@@ -164,7 +164,7 @@ def valuation_applicable(inputs: dict):
         if kw in blob:
             return False, (
                 f"Sector {inputs.get('industry') or inputs.get('sector') or 'financiero'}: "
-                "el DCF estandar NO aplica (bancos, aseguradoras y REITs no tienen FCF "
+                "el DCF estándar NO aplica (bancos, aseguradoras y REITs no tienen FCF "
                 "tradicional; su deuda es operativa). Usa Dividend Discount Model o P/B vs ROE."
             )
     hist = inputs.get("historical", {})
@@ -176,7 +176,7 @@ def valuation_applicable(inputs: dict):
         if avg_fcf < 0 or latest_ebitda < 0:
             return False, (
                 "Empresa con FCF o EBITDA negativo en los datos disponibles. Un DCF "
-                "produce numeros sin sentido aqui. Mira P/Ventas y comparables del sector."
+                "produce números sin sentido aquí. Mira P/Ventas y comparables del sector."
             )
     return True, None
 

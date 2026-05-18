@@ -1,12 +1,12 @@
-"""Conexion de cartera: Alpaca (acciones) + Polymarket (read-only).
+"""Conexión de cartera: Alpaca (acciones) + Polymarket (read-only).
 
 SEGURIDAD:
 - Claves API NUNCA se hardcodean ni se commitean. Vienen de st.secrets o input
-  de sesion del usuario (no persistido). .gitignore cubre .streamlit/secrets.toml.
-- Alpaca: por defecto PAPER trading (dinero ficticio). Live exige toggle explicito.
-- Polymarket: SOLO lectura por direccion publica de wallet. NUNCA se maneja la
-  private key del usuario en esta app (riesgo critico). Ordenes Polymarket no
-  se ejecutan desde aqui a proposito.
+  de sesión del usuario (no persistido). .gitignore cubre .streamlit/secrets.toml.
+- Alpaca: por defecto PAPER trading (dinero ficticio). Live exige toggle explícito.
+- Polymarket: SOLO lectura por dirección pública de wallet. NUNCA se maneja la
+  private key del usuario en esta app (riesgo crítico). Órdenes Polymarket no
+  se ejecutan desde aquí a propósito.
 """
 
 import requests
@@ -32,11 +32,11 @@ def alpaca_account(key: str, secret: str, paper: bool = True) -> dict:
     try:
         r = requests.get(f"{_alpaca_base(paper)}/account", headers=_alpaca_headers(key, secret), timeout=15)
     except requests.RequestException as e:
-        raise WalletError(f"Conexion Alpaca fallo: {e}")
+        raise WalletError(f"Conexión Alpaca falló: {e}")
     if r.status_code in (401, 403):
-        raise WalletError("Claves Alpaca invalidas o sin permiso (revisa key/secret y si son de paper o live).")
+        raise WalletError("Claves Alpaca inválidas o sin permiso (revisa key/secret y si son de paper o live).")
     if r.status_code != 200:
-        raise WalletError(f"Alpaca devolvio HTTP {r.status_code}.")
+        raise WalletError(f"Alpaca devolvió HTTP {r.status_code}.")
     return r.json()
 
 
@@ -73,7 +73,7 @@ def parse_order_tag(client_order_id: str):
 def alpaca_place_order(key: str, secret: str, symbol: str, qty: float, side: str,
                        paper: bool = True, order_type: str = "market",
                        time_in_force: str = "day", client_order_id: str = None) -> dict:
-    """Coloca una orden. Solo se debe llamar tras confirmacion explicita en la UI.
+    """Coloca una orden. Solo se debe llamar tras confirmación explícita en la UI.
     side: 'buy' | 'sell'. paper=True por defecto (dinero ficticio).
     client_order_id: tag opcional (veredicto del modelo) para medir resultados luego.
     """
@@ -109,15 +109,15 @@ def alpaca_recent_orders(key: str, secret: str, paper: bool = True, limit: int =
 
 
 def polymarket_positions(address: str) -> list:
-    """Read-only: posiciones de una wallet publica de Polymarket. Sin private key."""
+    """Read-only: posiciones de una wallet pública de Polymarket. Sin private key."""
     addr = address.strip()
     if not (addr.startswith("0x") and len(addr) == 42):
-        raise WalletError("Direccion EVM invalida (formato esperado 0x... de 42 caracteres).")
+        raise WalletError("Dirección EVM inválida (formato esperado 0x... de 42 caracteres).")
     try:
         r = requests.get(f"{POLYMARKET_DATA}/positions", params={"user": addr}, timeout=15)
     except requests.RequestException as e:
-        raise WalletError(f"Conexion Polymarket fallo: {e}")
+        raise WalletError(f"Conexión Polymarket falló: {e}")
     if r.status_code != 200:
-        raise WalletError(f"Polymarket devolvio HTTP {r.status_code}.")
+        raise WalletError(f"Polymarket devolvió HTTP {r.status_code}.")
     data = r.json()
     return data if isinstance(data, list) else []
